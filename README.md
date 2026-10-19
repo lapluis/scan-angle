@@ -14,7 +14,17 @@
 
 项目使用 uv 管理环境、依赖及锁文件，Python 版本固定为 3.14 系列（`.python-version` 和 `requires-python`）。先安装 uv。窗口界面需要 tkinter。
 
-主要代码位于 `src/scan_angle/app.py`，根目录 `main.py` 是统一运行和打包入口。`uv sync` 会将 src 包以可编辑方式安装到项目 `.venv`。
+主要代码按职责拆分在 `src/scan_angle/`：
+
+| 模块 | 职责 |
+| --- | --- |
+| `detection.py` | 长直线检测与偏角估算 |
+| `batch.py` | 文件夹批处理、CSV/JSON/预览输出及字段常量 |
+| `gui.py` | tkinter 窗口界面（tkinter 仅在此模块内导入） |
+| `cli.py` | 命令行参数解析与 GUI／批处理调度 |
+| `app.py` | 兼容旧导入的再导出层，不含实现 |
+
+根目录 `main.py` 只保留入口导入和 `__main__` 调用，是统一运行和打包入口。`uv sync` 会将 src 包以可编辑方式安装到项目 `.venv`。
 
 `uv.lock` 纳入版本控制；日常安装和 CI 使用 `--locked`，修改依赖后运行 `uv lock` 更新锁文件。
 
@@ -62,7 +72,7 @@ uv run --locked main.py "D:\workspace\LACA-15637" --output ".\results\LACA-15637
 uv run --locked python -m unittest discover -s tests -v
 ```
 
-自动测试覆盖已知旋转角、空白/圆形图拒判、多页 TIFF、损坏文件、递归时排除输出目录及 EXIF 方向处理。
+自动测试覆盖已知旋转角、空白/圆形图拒判、多页 TIFF、损坏文件、递归时排除输出目录及 EXIF 方向处理，以及 CLI 的 GUI／批处理调度、参数转发和最大偏角校验。
 
 初始化前曾使用本机 `D:\workspace\LACA-15637` 的 8 张 TIFF 验证：5 张标记可信、2 张需复核、光盘图未输出角度；对其中 3 张增加 2° 顺时针旋转，检测增量误差不超过 0.014°。该记录属于本机样例验证，原图没有人工角度真值，不能据此承诺绝对精度。原始扫描图及其衍生预览未纳入仓库。
 
