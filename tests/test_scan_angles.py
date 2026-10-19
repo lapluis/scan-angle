@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from scan_angles import FIELDS, estimate, run_batch
+from scan_angle.app import FIELDS, estimate, run_batch
 
 
 def rectangle():

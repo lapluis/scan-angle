@@ -12,21 +12,25 @@
 
 ## 开发运行
 
-需要 Python 3.10 或更新版本；Windows 建议使用 Python 3.12。窗口界面需要 tkinter（Windows 官方 Python 安装程序包含此组件）。
+项目使用 uv 管理环境、依赖及锁文件，Python 版本固定为 3.14 系列（`.python-version` 和 `requires-python`）。先安装 uv。窗口界面需要 tkinter。
+
+主要代码位于 `src/scan_angle/app.py`，根目录 `main.py` 是统一运行和打包入口。`uv sync` 会将 src 包以可编辑方式安装到项目 `.venv`。
+
+`uv.lock` 纳入版本控制；日常安装和 CI 使用 `--locked`，修改依赖后运行 `uv lock` 更新锁文件。
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[build]"
-.\.venv\Scripts\python.exe scan_angles.py
+uv python install 3.14
+uv sync --locked
+uv run --locked main.py
 ```
 
 命令行批处理：
 
 ```powershell
-.\.venv\Scripts\python.exe scan_angles.py "D:\workspace\LACA-15637" --output ".\results\LACA-15637"
+uv run --locked main.py "D:\workspace\LACA-15637" --output ".\results\LACA-15637"
 ```
 
-添加 `--recursive` 可包含子目录。安装项目后也可以调用 `scan-angle` 命令。对超过 Pillow 默认像素保护上限的可信扫描图，可显式添加 `--allow-large-images`。
+添加 `--recursive` 可包含子目录。统一使用根目录 `main.py` 入口。对超过 Pillow 默认像素保护上限的可信扫描图，可显式添加 `--allow-large-images`。
 
 ## 结果说明
 
@@ -55,7 +59,7 @@ python -m venv .venv
 ## 测试
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+uv run --locked python -m unittest discover -s tests -v
 ```
 
 自动测试覆盖已知旋转角、空白/圆形图拒判、多页 TIFF、损坏文件、递归时排除输出目录及 EXIF 方向处理。
@@ -64,7 +68,7 @@ python -m venv .venv
 
 ## Windows 打包
 
-安装开发依赖后执行：
+`uv sync --locked` 默认包含打包所需的 dev 依赖组，然后执行：
 
 ```powershell
 .\scripts\build-windows.ps1
@@ -72,4 +76,4 @@ python -m venv .venv
 
 生成 `dist/ScanAngle.exe`，可在 Windows 64 位系统双击运行，无需单独安装 Python。EXE 是窗口程序，通过命令行启动时不显示终端进度，可查看结果文件。构建产物不纳入 Git。
 
-GitHub Actions 在 Windows / Python 3.12 上执行测试。
+GitHub Actions 使用 uv、锁文件及 Python 3.14，在 Windows 上执行测试和入口检查。

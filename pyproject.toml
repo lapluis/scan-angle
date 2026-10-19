@@ -7,18 +7,15 @@ name = "scan-angle"
 version = "0.1.0"
 description = "Local batch skew-angle detection for scanned images"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14,<3.15"
 dependencies = [
   "numpy>=1.26,<3",
   "Pillow>=10,<13",
   "opencv-python-headless>=4.8,<6",
 ]
 
-[project.optional-dependencies]
-build = ["pyinstaller>=6,<7"]
+[dependency-groups]
+dev = ["pyinstaller>=6,<7"]
 
-[project.scripts]
-scan-angle = "scan_angles:main"
-
-[tool.setuptools]
-py-modules = ["scan_angles"]
+[tool.setuptools.packages.find]
+where = ["src"]
