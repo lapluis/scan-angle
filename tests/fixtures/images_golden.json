@@ -1,0 +1,57 @@
+[
+  {
+    "file": "angle_-7.png",
+    "angle": -6.999,
+    "status": "可信"
+  },
+  {
+    "file": "angle_-2.png",
+    "angle": -1.999,
+    "status": "可信"
+  },
+  {
+    "file": "angle_-0.25.png",
+    "angle": -0.25,
+    "status": "可信"
+  },
+  {
+    "file": "angle_0.png",
+    "angle": 0.0,
+    "status": "可信"
+  },
+  {
+    "file": "angle_0.3.png",
+    "angle": 0.3,
+    "status": "可信"
+  },
+  {
+    "file": "angle_1.75.png",
+    "angle": 1.75,
+    "status": "可信"
+  },
+  {
+    "file": "angle_6.png",
+    "angle": 5.999,
+    "status": "可信"
+  },
+  {
+    "file": "fragmented_0.3.png",
+    "angle": 0.296,
+    "status": "可信"
+  },
+  {
+    "file": "fragmented_-1.75.png",
+    "angle": -1.741,
+    "status": "可信"
+  },
+  {
+    "file": "blank.png",
+    "angle": null,
+    "status": "需人工确认"
+  },
+  {
+    "file": "circle.png",
+    "angle": null,
+    "status": "需人工确认"
+  }
+]
