@@ -151,7 +151,12 @@ class BatchTests(unittest.TestCase):
             image.save(source/'双页.tiff', save_all=True, append_images=[image.rotate(-1, fillcolor='white')])
             (source/'损坏.png').write_bytes(b'invalid')
             destination = source/'results'
-            rows = run_batch(source, destination, recursive=True)
+            file_counts = []
+            rows = run_batch(source, destination, recursive=True,
+                             file_progress=lambda completed, total: file_counts.append((completed, total)))
+            # A two-page TIFF is one file; the corrupt image also completes
+            # one file. Progress must reach 2/2 even though there are 3 rows.
+            self.assertEqual(file_counts, [(0, 2), (1, 2), (2, 2)])
             self.assertEqual(len(rows), 3)
             self.assertEqual(sum(row[FIELDS[4]] == '读取失败' for row in rows), 1)
             # Previous previews must not become source images on the next run.

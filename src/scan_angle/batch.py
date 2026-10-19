@@ -25,7 +25,7 @@ def _failure_detail(relative, page, error, settings):
 def run_batch(source, destination, recursive=False, max_angle=15,
               progress=lambda s: None, *, min_line_percent=10.0,
               min_line_pixels=50.0, analysis_size=2400, resample='lanczos',
-              settings=None):
+              settings=None, file_progress=None):
     """Process every supported image and write CSV, JSON and previews.
 
     ``settings``, when given, replaces the individual keyword settings.  All
@@ -34,6 +34,9 @@ def run_batch(source, destination, recursive=False, max_angle=15,
     raw detector fragments. Successful result rows additionally include
     ``fragment_count`` and ``merged_count`` for the GUI; CSV columns stay
     restricted to ``FIELDS``.
+    ``file_progress(completed, total)`` reports file counts: once at zero
+    after discovery and once after each file, including failed files.
+    A multi-page image advances the count only after all its pages finish.
     """
     if settings is None:
         settings = DetectionSettings(
@@ -56,6 +59,8 @@ def run_batch(source, destination, recursive=False, max_angle=15,
                    and not p.is_relative_to(destination))
     if not files:
         raise ValueError('文件夹中没有支持的图片')
+    if file_progress is not None:
+        file_progress(0, len(files))
     rows, detail = [], []
     for index, path in enumerate(files, 1):
         relative = path.relative_to(source)
@@ -87,6 +92,9 @@ def run_batch(source, destination, recursive=False, max_angle=15,
         except Exception as exc:
             rows.append(dict(zip(FIELDS,[str(relative),None,None,None,'读取失败',0,None,str(exc),''])))
             detail.append(_failure_detail(relative, None, exc, settings))
+        finally:
+            if file_progress is not None:
+                file_progress(index, len(files))
     with (destination/'angles.csv').open('w',encoding='utf-8-sig',newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=FIELDS)
         writer.writeheader()

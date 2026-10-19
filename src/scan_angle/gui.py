@@ -27,7 +27,6 @@ def gui(settings=None, *, recursive=False, output=None):
     root.option_add('*Font', ('Microsoft YaHei UI', 10))
     frame = ttk.Frame(root,padding=16)
     frame.pack(fill='both',expand=True)
-    ttk.Label(frame,text='正数＝顺时针；负数＝逆时针').pack(anchor='w',pady=(4,10))
     source, dest = tk.StringVar(), tk.StringVar(value=str(output) if output else '')
     def choose_source():
         chosen=filedialog.askdirectory(title='选择扫描图片文件夹')
@@ -52,15 +51,6 @@ def gui(settings=None, *, recursive=False, output=None):
     ttk.Spinbox(angle_options,from_=1,to=30,width=5,textvariable=angle).pack(side='left')
     ttk.Label(angle_options,text='°').pack(side='left')
 
-    options2=ttk.Frame(frame);options2.pack(fill='x',pady=3)
-    ttk.Label(options2,text='最短直线 ≥ 分析图短边').pack(side='left')
-    percent=tk.StringVar(value=_number_text(settings.min_line_percent))
-    ttk.Entry(options2,width=6,textvariable=percent).pack(side='left',padx=(5,2))
-    ttk.Label(options2,text='% 且 ≥').pack(side='left')
-    pixels=tk.StringVar(value=_number_text(settings.min_line_pixels))
-    ttk.Entry(options2,width=7,textvariable=pixels).pack(side='left',padx=(5,2))
-    ttk.Label(options2,text='分析像素').pack(side='left')
-
     options3=ttk.Frame(frame);options3.pack(fill='x',pady=3)
     ttk.Label(options3,text='分析图最长边').pack(side='left')
     analysis_size=tk.StringVar(value=_number_text(settings.analysis_size))
@@ -71,6 +61,16 @@ def gui(settings=None, *, recursive=False, output=None):
     ttk.Combobox(options3,values=tuple(RESAMPLE_ALGORITHMS),state='readonly',
                  width=10,textvariable=resample).pack(side='left',padx=(5,0))
 
+    options2=ttk.Frame(frame);options2.pack(fill='x',pady=3)
+    ttk.Label(options2,text='最短直线 ≥ 分析图短边').pack(side='left')
+    percent=tk.StringVar(value=_number_text(settings.min_line_percent))
+    ttk.Entry(options2,width=6,textvariable=percent).pack(side='left',padx=(5,2))
+    ttk.Label(options2,text='% 且 ≥').pack(side='left')
+    pixels=tk.StringVar(value=_number_text(settings.min_line_pixels))
+    ttk.Entry(options2,width=7,textvariable=pixels).pack(side='left',padx=(5,2))
+    ttk.Label(options2,text='分析像素').pack(side='left')
+
+    ttk.Label(frame,text='正数＝顺时针；负数＝逆时针').pack(anchor='w',pady=(4,10))
     tree=ttk.Treeview(frame,columns=('file','page','angle','merged','state'),show='headings',height=9)
     for key,title,width in [('file','文件',320),('page','页',45),('angle','偏差角度（°）',120),
                             ('merged','直线数',115),('state','状态',150)]:
@@ -78,7 +78,11 @@ def gui(settings=None, *, recursive=False, output=None):
     tree.pack(fill='both',expand=True,pady=7)
     status=tk.StringVar(value='')
     ttk.Label(frame,textvariable=status,wraplength=930).pack(anchor='w',pady=4)
-    bar=ttk.Progressbar(frame,mode='indeterminate');bar.pack(fill='x',pady=4)
+    progress_row=ttk.Frame(frame);progress_row.pack(fill='x',pady=4)
+    bar=ttk.Progressbar(progress_row,mode='determinate',maximum=1,value=0)
+    bar.pack(side='left',fill='x',expand=True,padx=(0,8))
+    file_count=tk.StringVar(value='0 / 0 文件')
+    ttk.Label(progress_row,textvariable=file_count).pack(side='right')
     messages=queue.Queue()
     buttons=ttk.Frame(frame);buttons.pack(fill='x',pady=5)
     running=[False]
@@ -117,13 +121,17 @@ def gui(settings=None, *, recursive=False, output=None):
         # Snapshot every Tk variable on the main thread; the worker thread
         # below must never read Tk state.
         snapshot=(source_value, dest_value, recursive_var.get(), config)
-        running[0]=True;start_button.configure(state='disabled');bar.start()
+        running[0]=True;start_button.configure(state='disabled')
+        bar.configure(maximum=1,value=0)
+        file_count.set('0 / 0 文件')
+        status.set('')
         tree.delete(*tree.get_children())
         def worker():
             try:
                 messages.put(('done',run_batch(
                     snapshot[0],snapshot[1],snapshot[2],progress=lambda s: messages.put(('log',s)),
-                    settings=snapshot[3])))
+                    settings=snapshot[3],
+                    file_progress=lambda completed,total: messages.put(('file_progress',(completed,total))))))
             except Exception: messages.put(('error',traceback.format_exc()))
         threading.Thread(target=worker,daemon=True).start()
     start_button=ttk.Button(buttons,text='开始检测',command=start);start_button.pack(side='left')
@@ -135,8 +143,12 @@ def gui(settings=None, *, recursive=False, output=None):
             while True:
                 kind,data=messages.get_nowait()
                 if kind=='log': status.set(data)
+                elif kind=='file_progress':
+                    completed,total=data
+                    bar.configure(maximum=max(1,total),value=completed)
+                    file_count.set(f'{completed} / {total} 文件')
                 else:
-                    running[0]=False;bar.stop();start_button.configure(state='normal')
+                    running[0]=False;start_button.configure(state='normal')
                     if kind=='error': status.set('检测失败');messagebox.showerror('检测失败',data)
                     else:
                         for row in data:
