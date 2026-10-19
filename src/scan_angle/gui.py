@@ -16,6 +16,11 @@ def _number_text(value):
     return f'{value:g}' if isinstance(value, float) else str(value)
 
 
+def _native_path(value):
+    """Use the host platform's path rules; keep an empty entry empty."""
+    return os.path.normpath(os.fspath(value)) if value else ''
+
+
 def gui(settings=None, *, recursive=False, output=None):
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox
@@ -27,20 +32,22 @@ def gui(settings=None, *, recursive=False, output=None):
     root.option_add('*Font', ('Microsoft YaHei UI', 10))
     frame = ttk.Frame(root,padding=16)
     frame.pack(fill='both',expand=True)
-    source, dest = tk.StringVar(), tk.StringVar(value=str(output) if output else '')
+    source, dest = tk.StringVar(), tk.StringVar(value=_native_path(output))
     def choose_source():
         chosen=filedialog.askdirectory(title='选择扫描图片文件夹')
         if chosen:
-            source.set(chosen)
-            dest.set(str(Path(chosen).parent/(Path(chosen).name+'_角度结果')))
+            source.set(_native_path(chosen))
+            dest.set(_native_path(Path(chosen).parent/(Path(chosen).name+'_角度结果')))
     for title,var,action in [('输入文件夹',source,choose_source),('输出文件夹',dest,lambda: choose_dest())]:
         row=ttk.Frame(frame);row.pack(fill='x',pady=3)
         ttk.Label(row,text=title,width=11).pack(side='left')
-        ttk.Entry(row,textvariable=var).pack(side='left',fill='x',expand=True,padx=6)
+        entry=ttk.Entry(row,textvariable=var)
+        entry.pack(side='left',fill='x',expand=True,padx=6)
+        entry.bind('<FocusOut>',lambda event,variable=var: variable.set(_native_path(variable.get())))
         ttk.Button(row,text='浏览…',command=action).pack(side='left')
     def choose_dest():
         chosen=filedialog.askdirectory(title='选择结果保存文件夹')
-        if chosen: dest.set(chosen)
+        if chosen: dest.set(_native_path(chosen))
 
     options=ttk.Frame(frame);options.pack(fill='x',pady=(7,2))
     recursive_var=tk.BooleanVar(value=bool(recursive))
@@ -118,13 +125,16 @@ def gui(settings=None, *, recursive=False, output=None):
             )
             if not 1 <= config.max_angle <= 30:
                 raise ValueError('最大偏角必须在 1～30 之间')
-            source_value, dest_value = source.get().strip(), dest.get().strip()
+            source_value = _native_path(source.get().strip())
+            dest_value = _native_path(dest.get().strip())
             if not source_value or not dest_value:
                 raise ValueError('请选择输入和输出文件夹')
         except (ValueError, TypeError) as exc:
             messagebox.showerror('输入有误', str(exc) or '请检查设置。');return
         # Snapshot every Tk variable on the main thread; the worker thread
         # below must never read Tk state.
+        source.set(source_value)
+        dest.set(dest_value)
         snapshot=(source_value, dest_value, recursive_var.get(), config)
         running[0]=True;start_button.configure(state='disabled')
         bar.configure(maximum=1,value=0)
