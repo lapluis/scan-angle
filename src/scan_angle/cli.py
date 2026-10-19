@@ -36,7 +36,7 @@ def main(argv=None):
     parser.add_argument('--recursive','-r',action='store_true')
     parser.add_argument('--max-angle',type=float,default=15)
     parser.add_argument('--min-line-percent',type=float,default=10.0,
-                        help='最短直线占分析图短边的百分比，默认 10，范围 (0, 100]')
+                        help='最短直线占对应方向分析图边长的百分比：水平线用宽度、竖直线用高度，默认 10，范围 (0, 100]')
     parser.add_argument('--min-line-pixels',type=float,default=50.0,
                         help='最短直线的绝对长度（分析图像素），默认 50，必须大于 0')
     parser.add_argument('--analysis-size',type=int,default=2400,

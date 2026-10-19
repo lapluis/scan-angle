@@ -209,16 +209,32 @@ class MergeTests(unittest.TestCase):
         self.assertAlmostEqual(line['support_length'], 240, delta=0.01)
         self.assertAlmostEqual(line['span_length'], 265, delta=0.01)
 
-        threshold = effective_min_line_pixels(DetectionSettings(), 600, 600)
+        threshold = effective_min_line_pixels(DetectionSettings(), 600, 600,
+                                              'horizontal')
         self.assertEqual(threshold, 60)
         self.assertTrue(all(40 < threshold for _ in segments))
         self.assertGreaterEqual(line['support_length'], threshold)
 
-    def test_effective_threshold_uses_larger_of_percent_and_pixels(self):
+    def test_effective_threshold_uses_orientation_axis_and_larger_value(self):
         percent_wins = DetectionSettings(min_line_percent=18, min_line_pixels=45)
-        self.assertEqual(effective_min_line_pixels(percent_wins, 1000, 2000), 180)
+        # A horizontal line's available extent is the width; a vertical
+        # line's is the height.
+        self.assertEqual(
+            effective_min_line_pixels(percent_wins, 1000, 2000, 'horizontal'), 360)
+        self.assertEqual(
+            effective_min_line_pixels(percent_wins, 1000, 2000, 'vertical'), 180)
         pixels_win = DetectionSettings(min_line_percent=1, min_line_pixels=45)
-        self.assertEqual(effective_min_line_pixels(pixels_win, 1000, 2000), 45)
+        self.assertEqual(
+            effective_min_line_pixels(pixels_win, 1000, 2000, 'horizontal'), 45)
+        self.assertEqual(
+            effective_min_line_pixels(pixels_win, 1000, 2000, 'vertical'), 45)
+
+    def test_effective_threshold_rejects_unknown_orientation(self):
+        settings = DetectionSettings()
+        for orientation in ['diagonal', 'Horizontal', '', None, 0]:
+            with self.subTest(orientation=orientation), \
+                    self.assertRaises(ValueError):
+                effective_min_line_pixels(settings, 1000, 2000, orientation)
 
 
 class SettingsValidationTests(unittest.TestCase):

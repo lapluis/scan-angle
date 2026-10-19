@@ -6,8 +6,10 @@ Line-segment detector output is first merged along each of the two axis
 directions, *before* the minimum-length filter is applied.  Only fragments of
 the same orientation (horizontal or vertical) are merged: a horizontal and a
 vertical line can have the same normalized skew angle (0 degrees) but are
-different physical directions.  The merge tolerances are deliberately
-conservative and scale with the analysis image short side:
+different physical directions.  The minimum-length filter is orientation
+dependent: horizontal merged lines are measured against the analysis image
+width and vertical merged lines against its height.  The merge tolerances are
+deliberately conservative and scale with the analysis image short side:
 
 * angle difference: ``MERGE_ANGLE_TOLERANCE_DEG`` (0.75 degrees);
 * perpendicular distance of a fragment's endpoints from the anchor line:
@@ -52,6 +54,7 @@ MERGE_PERPENDICULAR_TOLERANCE_RATIO = 0.0012
 MERGE_PERPENDICULAR_TOLERANCE_MIN_PX = 1.5
 MERGE_GAP_TOLERANCE_RATIO = 0.005
 MERGE_GAP_TOLERANCE_MIN_PX = 6.0
+ORIENTATIONS = ('horizontal', 'vertical')
 _FRAME_MARGIN_PX = 4
 
 
@@ -75,9 +78,11 @@ def _finite_float(name, value):
 class DetectionSettings:
     """Validated detection settings shared by the detector, batch, CLI and GUI.
 
-    ``min_line_percent`` is a percentage of the analysis image short side and
-    ``min_line_pixels`` is in analysis-image pixels.  The effective threshold
-    is the larger of the two (see :func:`effective_min_line_pixels`).
+    ``min_line_percent`` is a percentage of the analysis image extent in the
+    line's own direction: width for horizontal lines and height for vertical
+    lines.  ``min_line_pixels`` is in analysis-image pixels.  The effective
+    threshold is the larger of the two (see
+    :func:`effective_min_line_pixels`).
     """
 
     max_angle: float = 15.0
@@ -126,11 +131,21 @@ class DetectionSettings:
         }
 
 
-def effective_min_line_pixels(settings, height, width):
-    """Return max(percent of short side, absolute pixels) in analysis pixels."""
-    short_side = min(int(height), int(width))
+def effective_min_line_pixels(settings, height, width, orientation):
+    """Return the minimum support length for one line orientation.
+
+    Horizontal lines are measured against the analysis image ``width`` and
+    vertical lines against its ``height``, because that is the maximum extent
+    available to the line.  The result is
+    ``max(min_line_pixels, min_line_percent / 100 * axis extent)`` in
+    analysis-image pixels.  ``orientation`` is required and must be either
+    ``'horizontal'`` or ``'vertical'``.
+    """
+    if orientation not in ORIENTATIONS:
+        raise ValueError("orientation 必须是 'horizontal' 或 'vertical'")
+    extent = int(width) if orientation == 'horizontal' else int(height)
     return max(float(settings.min_line_pixels),
-               float(settings.min_line_percent) / 100.0 * short_side)
+               float(settings.min_line_percent) / 100.0 * extent)
 
 
 def _merge_tolerances(height, width):
@@ -395,12 +410,15 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
     """Return estimate plus evidence lines on an EXIF-normalized thumbnail.
 
     The length filter is applied to merged lines, so individually short
-    collinear fragments can form a valid long line.  ``settings``, when given,
-    replaces the individual keyword values.  The result retains the original
-    keys (``angle``, ``correction``, ``status``, ``count``, ``spread``,
-    ``reason``) and adds merge diagnostics; ``count`` is the number of merged
-    straight lines selected as evidence. ``merged_lines`` in the result
-    contains all merged lines before length and angle-consensus filtering.
+    collinear fragments can form a valid long line.  It is evaluated per
+    merged-line orientation against the actual resized analysis image:
+    horizontal lines use the image width and vertical lines use the height.
+    ``settings``, when given, replaces the individual keyword values.  The
+    result retains the original keys (``angle``, ``correction``, ``status``,
+    ``count``, ``spread``, ``reason``) and adds merge diagnostics; ``count``
+    is the number of merged straight lines selected as evidence.
+    ``merged_lines`` in the result contains all merged lines before length and
+    angle-consensus filtering.
     """
     if settings is None:
         settings = DetectionSettings(
@@ -415,7 +433,10 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
                     settings.resample_enum)
     gray = cv2.cvtColor(np.asarray(small), cv2.COLOR_RGB2GRAY)
     height, width = gray.shape
-    threshold = effective_min_line_pixels(settings, height, width)
+    thresholds = {
+        orientation: effective_min_line_pixels(settings, height, width, orientation)
+        for orientation in ORIENTATIONS
+    }
     perpendicular_tolerance, gap_tolerance = _merge_tolerances(height, width)
 
     found = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD).detect(gray)[0]
@@ -436,7 +457,7 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
         perpendicular_tolerance_px=perpendicular_tolerance,
         gap_tolerance_px=gap_tolerance)
     selected = [line for line in merged_lines
-                if line['support_length'] >= threshold
+                if line['support_length'] >= thresholds[line['orientation']]
                 and abs(line['angle']) <= settings.max_angle]
 
     diagnostics = {
@@ -452,7 +473,8 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
         'fragment_count': len(fragments),
         'merged_count': len(merged_lines),
         'merged_lines': merged_lines,
-        'threshold_px': round(threshold, 3),
+        'thresholds_px': {orientation: round(value, 3)
+                          for orientation, value in thresholds.items()},
         'merge': diagnostics,
     }
 

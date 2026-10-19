@@ -28,7 +28,7 @@ def _draw_preview(image, merged_lines, selected_lines):
 def _failure_detail(relative, page, error, settings):
     return dict(file=str(relative), page=page, angle=None, correction=None,
                 status='读取失败', count=0, spread=None, reason=str(error),
-                fragment_count=0, merged_count=0, threshold_px=None,
+                fragment_count=0, merged_count=0, thresholds_px=None,
                 merge=None, merged_lines=[], lines=[], settings=settings.as_dict(),
                 error=str(error))
 

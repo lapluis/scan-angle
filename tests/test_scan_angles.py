@@ -3,11 +3,46 @@ import math
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import numpy as np
 from PIL import Image, ImageDraw
 
 from scan_angle.batch import FIELDS, run_batch
 from scan_angle.detection import RESAMPLE_ALGORITHMS, DetectionSettings, estimate
+
+
+class _FakeLineSegmentDetector:
+    def __init__(self, segments):
+        self._segments = np.asarray(segments, dtype=np.float32).reshape(-1, 4)
+
+    def detect(self, _gray):
+        return self._segments.reshape(-1, 1, 4), None, None
+
+
+def estimate_with_segments(image, segments, **kwargs):
+    """Run the real thumbnail/merge/filter pipeline with fixed detector output."""
+    detector = _FakeLineSegmentDetector(segments)
+    with mock.patch('scan_angle.detection.cv2.createLineSegmentDetector',
+                    return_value=detector):
+        return estimate(image, **kwargs)
+
+
+def _has_dominant_channel(image, center, channel, margin=20):
+    """Return whether a neighbourhood contains a pixel dominated by a channel.
+
+    The margin stays modest because previews are JPEG-compressed and the
+    one-pixel blue merged layer can be partly desaturated by chroma
+    subsampling.
+    """
+    cx, cy = center
+    for x in range(cx - 3, cx + 4):
+        for y in range(cy - 3, cy + 4):
+            pixel = image.getpixel((x, y))
+            others = [pixel[index] for index in range(3) if index != channel]
+            if pixel[channel] > 150 and pixel[channel] - max(others) > margin:
+                return True
+    return False
 
 
 def rectangle():
@@ -91,7 +126,10 @@ class EstimateTests(unittest.TestCase):
         detected, _, lines = estimate(image)
         self.assertIsNotNone(detected['angle'])
         self.assertEqual(detected['count'], len(lines))
-        self.assertGreater(detected['threshold_px'], 0)
+        self.assertEqual(set(detected['thresholds_px']),
+                         {'horizontal', 'vertical'})
+        self.assertTrue(all(value > 0
+                            for value in detected['thresholds_px'].values()))
 
         too_short, _, lines = estimate(image, min_line_pixels=5000)
         self.assertIsNone(too_short['angle'])
@@ -100,8 +138,8 @@ class EstimateTests(unittest.TestCase):
         self.assertGreater(too_short['merged_count'], 0)
         self.assertEqual(len(too_short['merged_lines']), too_short['merged_count'])
 
-        # 99.9% of the 1400 px short side is longer than any rectangle edge
-        # that survives merging on its own.
+        # 99.9% of the analysis width (1398.6 px) and height (1698.3 px) is
+        # longer than the corresponding rectangle edges that survive merging.
         percent_too_high, _, _ = estimate(image, min_line_percent=99.9,
                                           min_line_pixels=1)
         self.assertIsNone(percent_too_high['angle'])
@@ -116,14 +154,15 @@ class EstimateTests(unittest.TestCase):
         # 5 px dash gaps are within the 8 px documented tolerance for this
         # image size, but each 100 px dash is below the 160 px threshold.
         self.assertGreater(result['merge']['gap_tolerance_px'], 5)
-        self.assertGreater(result['threshold_px'], 100)
+        self.assertGreater(result['thresholds_px']['horizontal'], 100)
+        self.assertGreater(result['thresholds_px']['vertical'], 100)
         self.assertGreater(result['merge']['fragments'],
                            4 * result['merge']['selected'])
         self.assertTrue(any(line['member_count'] >= 3 for line in lines))
         for line in lines:
             if line['member_count'] >= 2:
                 self.assertGreater(line['support_length'],
-                                   result['threshold_px'])
+                                   result['thresholds_px'][line['orientation']])
 
     def test_dashed_line_fragments_become_eligible_after_merge(self):
         image = Image.new('RGB', (1600, 1600), 'white')
@@ -136,13 +175,160 @@ class EstimateTests(unittest.TestCase):
         self.assertGreater(result['count'], 0)
         # The 80 px dashes are below the 10% / 50 px threshold on their own,
         # but their merged support length is not.
-        self.assertLess(80, result['threshold_px'])
+        self.assertLess(80, result['thresholds_px']['horizontal'])
         self.assertGreater(result['merge']['merged'], 0)
         self.assertLess(result['merge']['merged'], result['merge']['fragments'])
         self.assertTrue(any(line['member_count'] >= 2 for line in lines))
         for line in lines:
             if line['member_count'] >= 2:
-                self.assertGreater(line['support_length'], result['threshold_px'])
+                self.assertGreater(line['support_length'],
+                                   result['thresholds_px'][line['orientation']])
+
+
+class OrientationThresholdTests(unittest.TestCase):
+    """End-to-end threshold tests with deterministic detector output.
+
+    The detector is stubbed so each merged line's support length is known
+    exactly.  The thumbnail, merging, filtering and angle-consensus pipeline
+    underneath remains the real implementation, so these tests exercise
+    estimate() rather than only the threshold helper.
+    """
+
+    @staticmethod
+    def _white(width, height):
+        return Image.new('RGB', (width, height), 'white')
+
+    def test_wide_image_rejects_horizontal_and_keeps_vertical(self):
+        # Analysis image 4000 x 1000 (analysis_size 4000 keeps it unchanged):
+        # horizontal threshold = 10% of width = 400, vertical = 10% of
+        # height = 100.  Both merged lines have about 150 px support, so only
+        # the vertical line may pass.  Endpoints are reversed and skewed.
+        segments = [
+            (2200, 500, 2050, 502),   # horizontal, reversed, 0.76 degrees
+            (1200, 700, 1202, 550),   # vertical, reversed, 0.76 degrees
+        ]
+        result, small, lines = estimate_with_segments(
+            self._white(4000, 1000), segments,
+            settings=DetectionSettings(analysis_size=4000))
+        self.assertEqual(small.size, (4000, 1000))
+        self.assertEqual(result['thresholds_px'],
+                         {'horizontal': 400.0, 'vertical': 100.0})
+        self.assertEqual(result['merged_count'], 2)
+        self.assertEqual(result['merge']['merged'], 2)
+        self.assertEqual(result['merge']['selected'], 1)
+        self.assertEqual(result['count'], 1)
+        self.assertEqual([line['orientation'] for line in lines], ['vertical'])
+        self.assertAlmostEqual(lines[0]['support_length'], math.hypot(2, 150),
+                               delta=.01)
+
+    def test_tall_image_rejects_vertical_and_keeps_horizontal(self):
+        # Mirror image: 1000 x 4000 gives horizontal threshold 100 and
+        # vertical threshold 400, so the 150 px horizontal line alone passes.
+        segments = [
+            (700, 2000, 550, 2002),   # horizontal, reversed, 0.76 degrees
+            (500, 3000, 502, 2850),   # vertical, reversed, 0.76 degrees
+        ]
+        result, small, lines = estimate_with_segments(
+            self._white(1000, 4000), segments,
+            settings=DetectionSettings(analysis_size=4000))
+        self.assertEqual(small.size, (1000, 4000))
+        self.assertEqual(result['thresholds_px'],
+                         {'horizontal': 100.0, 'vertical': 400.0})
+        self.assertEqual(result['merged_count'], 2)
+        self.assertEqual(result['merge']['selected'], 1)
+        self.assertEqual(result['count'], 1)
+        self.assertEqual([line['orientation'] for line in lines],
+                         ['horizontal'])
+
+    def test_merged_skewed_fragments_use_each_orientation_threshold(self):
+        # Two short, reversed, slightly skewed fragments per direction.  The
+        # horizontal pair merges to about 150 px (< 400) and the vertical pair
+        # to about 150 px (>= 100).  Filtering must happen after merging and
+        # use the merged line's own orientation.
+        segments = [
+            (2125, 500.0, 2050, 500.25),   # horizontal fragment, reversed
+            (2205, 501.0, 2130, 500.6),    # horizontal fragment, reversed
+            (1200.5, 625, 1200, 550),      # vertical fragment, reversed
+            (1201, 705, 1200.5, 630),      # vertical fragment, reversed
+        ]
+        result, _, lines = estimate_with_segments(
+            self._white(4000, 1000), segments,
+            settings=DetectionSettings(analysis_size=4000))
+        self.assertEqual(result['fragment_count'], 4)
+        self.assertEqual(result['merged_count'], 2)
+        self.assertEqual(result['merge']['merged'], 2)
+        self.assertEqual(result['merge']['selected'], 1)
+        self.assertEqual(result['count'], 1)
+        self.assertEqual([line['orientation'] for line in lines], ['vertical'])
+        by_orientation = {line['orientation']: line
+                          for line in result['merged_lines']}
+        self.assertGreater(by_orientation['horizontal']['member_count'], 1)
+        self.assertGreater(by_orientation['vertical']['member_count'], 1)
+        self.assertLess(by_orientation['horizontal']['support_length'], 400)
+        self.assertGreaterEqual(by_orientation['vertical']['support_length'], 100)
+
+    def test_actual_resized_dimensions_set_the_boundaries(self):
+        # The 4000 x 1000 source shrinks to 2400 x 600 at the default
+        # analysis_size.  Thresholds come from those actual dimensions:
+        # horizontal 10% of 2400 = 240; vertical 10% of 600 = 60.  They are
+        # neither the original-image values (400/100) nor 10% of the
+        # requested 2400 x 2400 (240/240).
+        image = self._white(4000, 1000)
+        exact = [
+            (1040, 300, 800, 300),       # horizontal support exactly 240
+            (1600, 330, 1600, 270),      # vertical support exactly 60
+        ]
+        result, small, lines = estimate_with_segments(image, exact)
+        self.assertEqual(small.size, (2400, 600))
+        self.assertEqual(result['thresholds_px'],
+                         {'horizontal': 240.0, 'vertical': 60.0})
+        self.assertEqual(result['count'], 2)
+        self.assertEqual({line['orientation'] for line in lines},
+                         {'horizontal', 'vertical'})
+
+        below = [
+            (1039.9, 300, 800, 300),       # horizontal 239.9 < 240
+            (1600, 329.95, 1600, 270.05),  # vertical 59.9 < 60
+        ]
+        result, small, lines = estimate_with_segments(image, below)
+        self.assertEqual(small.size, (2400, 600))
+        self.assertEqual(result['thresholds_px'],
+                         {'horizontal': 240.0, 'vertical': 60.0})
+        self.assertEqual(result['merged_count'], 2)
+        self.assertEqual(result['merge']['selected'], 0)
+        self.assertEqual(result['count'], 0)
+        self.assertIsNone(result['angle'])
+        self.assertEqual(lines, [])
+
+    def test_50px_floor_applies_to_both_orientations(self):
+        # A 400 x 200 source is not upscaled, so the percentage thresholds
+        # are only 40 and 20 px and both directions fall back to the 50 px
+        # absolute floor.  Exactly 50 px passes; 49.9 px does not.
+        image = self._white(400, 200)
+        exact = [
+            (170, 100, 120, 100),     # horizontal support exactly 50
+            (300, 125, 300, 75),      # vertical support exactly 50
+        ]
+        result, small, lines = estimate_with_segments(image, exact)
+        self.assertEqual(small.size, (400, 200))
+        self.assertEqual(result['thresholds_px'],
+                         {'horizontal': 50.0, 'vertical': 50.0})
+        self.assertEqual(result['count'], 2)
+        self.assertEqual({line['orientation'] for line in lines},
+                         {'horizontal', 'vertical'})
+
+        below = [
+            (169.9, 100, 120, 100),     # horizontal 49.9 < 50
+            (300, 124.95, 300, 75.05),  # vertical 49.9 < 50
+        ]
+        result, small, lines = estimate_with_segments(image, below)
+        self.assertEqual(small.size, (400, 200))
+        self.assertEqual(result['thresholds_px'],
+                         {'horizontal': 50.0, 'vertical': 50.0})
+        self.assertEqual(result['merge']['selected'], 0)
+        self.assertEqual(result['count'], 0)
+        self.assertIsNone(result['angle'])
+        self.assertEqual(lines, [])
 
 
 class BatchTests(unittest.TestCase):
@@ -208,6 +394,10 @@ class BatchTests(unittest.TestCase):
             self.assertGreaterEqual(entry['merged_count'], entry['count'])
             self.assertEqual(entry['count'], len(entry['lines']))
             self.assertEqual(entry['merged_count'], len(entry['merged_lines']))
+            self.assertEqual(set(entry['thresholds_px']),
+                             {'horizontal', 'vertical'})
+            self.assertTrue(all(value > 0
+                                for value in entry['thresholds_px'].values()))
             self.assertTrue(all(line in entry['merged_lines'] for line in entry['lines']))
             self.assertEqual(rows[0][FIELDS[5]], entry['count'])
             self.assertEqual(rows[0]['fragment_count'], entry['fragment_count'])
@@ -217,6 +407,45 @@ class BatchTests(unittest.TestCase):
                 self.assertLessEqual(line['support_length'], line['span_length'])
             header = (destination/'angles.csv').read_text(encoding='utf-8-sig').splitlines()[0]
             self.assertIn('合并直线数', header)
+
+    def test_batch_orientation_filter_and_preview_layers_stay_consistent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)/'input'
+            source.mkdir()
+            Image.new('RGB', (2000, 1000), 'white').save(source/'wide.png')
+            destination = Path(directory)/'output'
+            # 2000 x 1000 is below the default 2400 longest side, so it is
+            # not resized: horizontal threshold = 200, vertical = 100.
+            # The horizontal line is only ~150 px and must stay blue
+            # (merged but not selected); the vertical line passes and is red.
+            segments = [
+                (1800, 500, 1650, 502),   # horizontal, reversed, ~150 px
+                (1200, 700, 1202, 550),   # vertical, reversed, ~150 px
+            ]
+            detector = _FakeLineSegmentDetector(segments)
+            with mock.patch('scan_angle.detection.cv2.createLineSegmentDetector',
+                            return_value=detector):
+                rows = run_batch(source, destination)
+            self.assertEqual(len(rows), 1)
+            entry = json.loads((destination/'details.json').read_text(
+                encoding='utf-8'))[0]
+            self.assertEqual(entry['thresholds_px'],
+                             {'horizontal': 200.0, 'vertical': 100.0})
+            self.assertEqual(entry['merged_count'], 2)
+            self.assertEqual(entry['merged_count'], len(entry['merged_lines']))
+            self.assertEqual(entry['merge']['selected'], 1)
+            self.assertEqual(entry['count'], 1)
+            self.assertEqual(entry['count'], len(entry['lines']))
+            self.assertEqual(rows[0][FIELDS[5]], 1)
+            self.assertEqual([line['orientation'] for line in entry['lines']],
+                             ['vertical'])
+            with Image.open(destination/rows[0][FIELDS[8]]) as preview:
+                preview = preview.convert('RGB')
+                self.assertEqual(preview.size, (2000, 1000))
+                # Selected vertical line: red over the blue merged layer.
+                self.assertTrue(_has_dominant_channel(preview, (1201, 625), 0))
+                # Rejected horizontal line: blue merged layer remains.
+                self.assertTrue(_has_dominant_channel(preview, (1725, 501), 2))
 
     def test_batch_keyword_settings_are_validated_and_recorded(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -262,6 +491,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(len(details), 1)
             self.assertEqual(details[0]['settings'], settings.as_dict())
             self.assertEqual(details[0]['status'], '读取失败')
+            self.assertIsNone(details[0]['thresholds_px'])
             self.assertIn('error', details[0])
 
 

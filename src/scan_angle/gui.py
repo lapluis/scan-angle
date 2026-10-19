@@ -68,7 +68,7 @@ def gui(settings=None, *, recursive=False, output=None):
                  width=10,textvariable=resample).pack(side='left',padx=(5,0))
 
     options2=ttk.Frame(frame);options2.pack(fill='x',pady=3)
-    ttk.Label(options2,text='最短直线 ≥ 分析图短边').pack(side='left')
+    ttk.Label(options2,text='最短直线 ≥ 对应方向边长').pack(side='left')
     percent=tk.StringVar(value=_number_text(settings.min_line_percent))
     ttk.Entry(options2,width=6,textvariable=percent).pack(side='left',padx=(5,2))
     ttk.Label(options2,text='% 且 ≥').pack(side='left')
