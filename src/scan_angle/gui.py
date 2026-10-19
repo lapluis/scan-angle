@@ -44,7 +44,7 @@ def gui(settings=None, *, recursive=False, output=None):
 
     options=ttk.Frame(frame);options.pack(fill='x',pady=(7,2))
     recursive_var=tk.BooleanVar(value=bool(recursive))
-    ttk.Checkbutton(options,text='包含子文件夹',variable=recursive_var).pack(side='left')
+    ttk.Checkbutton(options,text='包含子文件夹',variable=recursive_var).pack(side='right')
     angle_options=ttk.Frame(frame);angle_options.pack(fill='x',pady=3)
     ttk.Label(angle_options,text='最大偏角 ±').pack(side='left')
     angle=tk.StringVar(value=_number_text(settings.max_angle))
