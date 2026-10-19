@@ -7,8 +7,12 @@ from pathlib import Path
 from PIL import Image
 
 from .batch import run_batch
-from .detection import (MAX_ANALYSIS_SIZE, MIN_ANALYSIS_SIZE, RESAMPLE_ALGORITHMS,
-                        DetectionSettings)
+from .detection import (MAX_ANALYSIS_SIZE, MERGE_ANGLE_TOLERANCE_DEG,
+                        MERGE_DISTANCE_TOLERANCE_MIN_PX,
+                        MERGE_DISTANCE_TOLERANCE_PERCENT,
+                        MERGE_GAP_TOLERANCE_MIN_PX,
+                        MERGE_GAP_TOLERANCE_PERCENT, MIN_ANALYSIS_SIZE,
+                        RESAMPLE_ALGORITHMS, DetectionSettings)
 from .gui import gui
 
 
@@ -18,6 +22,11 @@ _SETTING_OPTIONS = {
     'min_line_pixels': '--min-line-pixels',
     'analysis_size': '--analysis-size',
     'resample': '--resample',
+    'merge_angle': '--merge-angle',
+    'merge_distance_percent': '--merge-distance-percent',
+    'merge_distance_pixels': '--merge-distance-pixels',
+    'merge_gap_percent': '--merge-gap-percent',
+    'merge_gap_pixels': '--merge-gap-pixels',
 }
 
 
@@ -43,6 +52,20 @@ def main(argv=None):
                         help=f'分析图最长边像素，默认 2400，范围 {MIN_ANALYSIS_SIZE}～{MAX_ANALYSIS_SIZE}；不放大原图')
     parser.add_argument('--resample',default='lanczos',
                         help=f'分析图缩放算法：{names}，默认 lanczos')
+    parser.add_argument('--merge-angle',type=float,default=MERGE_ANGLE_TOLERANCE_DEG,
+                        help='共线合并允许的最大方向角差（度），默认 0.75，必须大于 0 且小于 45')
+    parser.add_argument('--merge-distance-percent',type=float,
+                        default=MERGE_DISTANCE_TOLERANCE_PERCENT,
+                        help='垂直距离容差占分析图短边的百分比，默认 0.12（即 0.12%%，不是比例），必须大于等于 0')
+    parser.add_argument('--merge-distance-pixels',type=float,
+                        default=MERGE_DISTANCE_TOLERANCE_MIN_PX,
+                        help='垂直距离容差的绝对下限（分析图像素），默认 1.5，必须大于等于 0')
+    parser.add_argument('--merge-gap-percent',type=float,
+                        default=MERGE_GAP_TOLERANCE_PERCENT,
+                        help='投影间隙容差占分析图短边的百分比，默认 0.5（即 0.5%%，不是比例），必须大于等于 0')
+    parser.add_argument('--merge-gap-pixels',type=float,
+                        default=MERGE_GAP_TOLERANCE_MIN_PX,
+                        help='投影间隙容差的绝对下限（分析图像素），默认 6，必须大于等于 0')
     parser.add_argument('--allow-large-images',action='store_true',help='允许处理超过 Pillow 默认像素保护上限的可信本地扫描图')
     args=parser.parse_args(argv)
     if args.allow_large_images: Image.MAX_IMAGE_PIXELS=None
@@ -53,6 +76,11 @@ def main(argv=None):
             min_line_pixels=args.min_line_pixels,
             analysis_size=args.analysis_size,
             resample=args.resample,
+            merge_angle=args.merge_angle,
+            merge_distance_percent=args.merge_distance_percent,
+            merge_distance_pixels=args.merge_distance_pixels,
+            merge_gap_percent=args.merge_gap_percent,
+            merge_gap_pixels=args.merge_gap_pixels,
         )
     except ValueError as exc:
         parser.error(_option_message(str(exc)))

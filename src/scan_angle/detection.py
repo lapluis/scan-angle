@@ -9,13 +9,16 @@ vertical line can have the same normalized skew angle (0 degrees) but are
 different physical directions.  The minimum-length filter is orientation
 dependent: horizontal merged lines are measured against the analysis image
 width and vertical merged lines against its height.  The merge tolerances are
-deliberately conservative and scale with the analysis image short side:
+configurable through :class:`DetectionSettings` and scale with the actual
+analysis image short side:
 
-* angle difference: ``MERGE_ANGLE_TOLERANCE_DEG`` (0.75 degrees);
+* angle difference between fragments: ``merge_angle`` (default 0.75 degrees,
+  must be strictly between 0 and 45);
 * perpendicular distance of a fragment's endpoints from the anchor line:
-  ``max(1.5 px, 0.12% of the short side)``;
+  ``max(merge_distance_pixels,
+  short side * merge_distance_percent / 100)``;
 * gap between projected fragment intervals:
-  ``max(6 px, 0.5% of the short side)``.
+  ``max(merge_gap_pixels, short side * merge_gap_percent / 100)``.
 
 The longest remaining fragment seeds each group.  Every other fragment is
 validated directly against that stable anchor line -- orientation, angle and
@@ -50,10 +53,14 @@ RESAMPLE_ALGORITHMS = {
 MIN_ANALYSIS_SIZE = 256
 MAX_ANALYSIS_SIZE = 10000
 MERGE_ANGLE_TOLERANCE_DEG = 0.75
-MERGE_PERPENDICULAR_TOLERANCE_RATIO = 0.0012
-MERGE_PERPENDICULAR_TOLERANCE_MIN_PX = 1.5
-MERGE_GAP_TOLERANCE_RATIO = 0.005
+MERGE_DISTANCE_TOLERANCE_PERCENT = 0.12
+MERGE_DISTANCE_TOLERANCE_MIN_PX = 1.5
+MERGE_GAP_TOLERANCE_PERCENT = 0.5
 MERGE_GAP_TOLERANCE_MIN_PX = 6.0
+# Ratio aliases kept for callers of the historical low-level constants.
+MERGE_PERPENDICULAR_TOLERANCE_RATIO = 0.0012
+MERGE_PERPENDICULAR_TOLERANCE_MIN_PX = MERGE_DISTANCE_TOLERANCE_MIN_PX
+MERGE_GAP_TOLERANCE_RATIO = 0.005
 ORIENTATIONS = ('horizontal', 'vertical')
 _FRAME_MARGIN_PX = 4
 
@@ -83,6 +90,24 @@ class DetectionSettings:
     lines.  ``min_line_pixels`` is in analysis-image pixels.  The effective
     threshold is the larger of the two (see
     :func:`effective_min_line_pixels`).
+
+    Merge tolerances use the actual resized analysis image:
+
+    * ``merge_angle`` is the maximum direction-angle difference in degrees and
+      must be strictly between 0 and 45.
+    * ``merge_distance_percent`` and ``merge_gap_percent`` are percentages
+      (``0.12`` means 0.12%, not a ratio) of the short side; both must be
+      finite and nonnegative.  Zero is allowed and means exact collinearity
+      or touching/overlapping projected intervals respectively.
+    * ``merge_distance_pixels`` and ``merge_gap_pixels`` are absolute floors
+      in analysis-image pixels and must be finite and nonnegative.
+
+    The effective perpendicular distance is
+    ``max(merge_distance_pixels,
+    short side * merge_distance_percent / 100)`` and the effective projected
+    gap is ``max(merge_gap_pixels,
+    short side * merge_gap_percent / 100)``; see
+    :func:`effective_merge_tolerances`.
     """
 
     max_angle: float = 15.0
@@ -90,6 +115,11 @@ class DetectionSettings:
     min_line_pixels: float = 50.0
     analysis_size: int = 2400
     resample: str = 'lanczos'
+    merge_angle: float = MERGE_ANGLE_TOLERANCE_DEG
+    merge_distance_percent: float = MERGE_DISTANCE_TOLERANCE_PERCENT
+    merge_distance_pixels: float = MERGE_DISTANCE_TOLERANCE_MIN_PX
+    merge_gap_percent: float = MERGE_GAP_TOLERANCE_PERCENT
+    merge_gap_pixels: float = MERGE_GAP_TOLERANCE_MIN_PX
 
     def __post_init__(self):
         max_angle = _finite_float('max_angle', self.max_angle)
@@ -101,6 +131,25 @@ class DetectionSettings:
         pixels = _finite_float('min_line_pixels', self.min_line_pixels)
         if pixels <= 0:
             raise ValueError('min_line_pixels 必须是大于 0 的有限数值')
+        merge_angle = _finite_float('merge_angle', self.merge_angle)
+        if not 0 < merge_angle < 45:
+            raise ValueError('merge_angle 必须大于 0 且小于 45')
+        merge_distance_percent = _finite_float('merge_distance_percent',
+                                               self.merge_distance_percent)
+        if merge_distance_percent < 0:
+            raise ValueError('merge_distance_percent 必须是非负的有限数值')
+        merge_distance_pixels = _finite_float('merge_distance_pixels',
+                                              self.merge_distance_pixels)
+        if merge_distance_pixels < 0:
+            raise ValueError('merge_distance_pixels 必须是非负的有限数值')
+        merge_gap_percent = _finite_float('merge_gap_percent',
+                                          self.merge_gap_percent)
+        if merge_gap_percent < 0:
+            raise ValueError('merge_gap_percent 必须是非负的有限数值')
+        merge_gap_pixels = _finite_float('merge_gap_pixels',
+                                         self.merge_gap_pixels)
+        if merge_gap_pixels < 0:
+            raise ValueError('merge_gap_pixels 必须是非负的有限数值')
         size = self.analysis_size
         if isinstance(size, bool) or not isinstance(size, int):
             raise ValueError(f'analysis_size 必须是 {MIN_ANALYSIS_SIZE}～{MAX_ANALYSIS_SIZE} 之间的整数')
@@ -116,6 +165,11 @@ class DetectionSettings:
         object.__setattr__(self, 'min_line_percent', percent)
         object.__setattr__(self, 'min_line_pixels', pixels)
         object.__setattr__(self, 'resample', resample)
+        object.__setattr__(self, 'merge_angle', merge_angle)
+        object.__setattr__(self, 'merge_distance_percent', merge_distance_percent)
+        object.__setattr__(self, 'merge_distance_pixels', merge_distance_pixels)
+        object.__setattr__(self, 'merge_gap_percent', merge_gap_percent)
+        object.__setattr__(self, 'merge_gap_pixels', merge_gap_pixels)
 
     @property
     def resample_enum(self):
@@ -128,6 +182,11 @@ class DetectionSettings:
             'min_line_pixels': self.min_line_pixels,
             'analysis_size': self.analysis_size,
             'resample': self.resample,
+            'merge_angle': self.merge_angle,
+            'merge_distance_percent': self.merge_distance_percent,
+            'merge_distance_pixels': self.merge_distance_pixels,
+            'merge_gap_percent': self.merge_gap_percent,
+            'merge_gap_pixels': self.merge_gap_pixels,
         }
 
 
@@ -146,6 +205,30 @@ def effective_min_line_pixels(settings, height, width, orientation):
     extent = int(width) if orientation == 'horizontal' else int(height)
     return max(float(settings.min_line_pixels),
                float(settings.min_line_percent) / 100.0 * extent)
+
+
+def effective_merge_tolerances(settings, height, width):
+    """Return the effective merge tolerances in analysis-image pixels.
+
+    Both values use the actual analysis image short side
+    ``min(height, width)`` and the configured percentages, where ``0.12``
+    means 0.12% (not a ratio):
+
+    * perpendicular distance: ``max(merge_distance_pixels,
+      short_side * merge_distance_percent / 100)``;
+    * projected gap: ``max(merge_gap_pixels,
+      short_side * merge_gap_percent / 100)``.
+
+    A configured percentage and pixel floor of zero both yield a zero
+    tolerance, which means exact collinearity for distance and
+    touching/overlapping projected intervals for gap.
+    """
+    short_side = min(int(height), int(width))
+    distance = max(float(settings.merge_distance_pixels),
+                   short_side * float(settings.merge_distance_percent) / 100.0)
+    gap = max(float(settings.merge_gap_pixels),
+              short_side * float(settings.merge_gap_percent) / 100.0)
+    return distance, gap
 
 
 def _merge_tolerances(height, width):
@@ -364,6 +447,12 @@ def merge_collinear_segments(segments, image_shape, *, angle_tolerance_deg=None,
 
     Horizontal and vertical fragments are kept in separate groups even when
     their normalized skew angle is identical.
+
+    The angle tolerance must be finite and strictly between 0 and 45 degrees.
+    The perpendicular-distance and gap tolerances must be finite and
+    nonnegative.  A zero distance tolerance means only exactly collinear
+    fragments merge; a zero gap tolerance means projected intervals must
+    overlap or touch exactly, so any positive separation splits the chain.
     """
     height, width = image_shape[0], image_shape[1]
     default_perpendicular, default_gap = _merge_tolerances(height, width)
@@ -372,9 +461,12 @@ def merge_collinear_segments(segments, image_shape, *, angle_tolerance_deg=None,
     perpendicular_tolerance = (default_perpendicular if perpendicular_tolerance_px is None
                                else float(perpendicular_tolerance_px))
     gap_tolerance = default_gap if gap_tolerance_px is None else float(gap_tolerance_px)
-    if not all(math.isfinite(value) and value > 0 for value in
-               (angle_tolerance, perpendicular_tolerance, gap_tolerance)):
-        raise ValueError('合并容差必须是大于 0 的有限数值')
+    if not math.isfinite(angle_tolerance) or not 0 < angle_tolerance < 45:
+        raise ValueError('合并角度容差必须是大于 0 且小于 45 的有限数值')
+    if not math.isfinite(perpendicular_tolerance) or perpendicular_tolerance < 0:
+        raise ValueError('合并垂直距离容差必须是非负的有限数值')
+    if not math.isfinite(gap_tolerance) or gap_tolerance < 0:
+        raise ValueError('合并间隙容差必须是非负的有限数值')
 
     fragments = []
     for segment in segments:
@@ -406,19 +498,27 @@ def _touches_frame(fragment, height, width):
 
 
 def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0,
-             min_line_pixels=50.0, resample='lanczos', settings=None):
+             min_line_pixels=50.0, resample='lanczos',
+             merge_angle=MERGE_ANGLE_TOLERANCE_DEG,
+             merge_distance_percent=MERGE_DISTANCE_TOLERANCE_PERCENT,
+             merge_distance_pixels=MERGE_DISTANCE_TOLERANCE_MIN_PX,
+             merge_gap_percent=MERGE_GAP_TOLERANCE_PERCENT,
+             merge_gap_pixels=MERGE_GAP_TOLERANCE_MIN_PX, settings=None):
     """Return estimate plus evidence lines on an EXIF-normalized thumbnail.
 
     The length filter is applied to merged lines, so individually short
     collinear fragments can form a valid long line.  It is evaluated per
     merged-line orientation against the actual resized analysis image:
     horizontal lines use the image width and vertical lines use the height.
-    ``settings``, when given, replaces the individual keyword values.  The
-    result retains the original keys (``angle``, ``correction``, ``status``,
-    ``count``, ``spread``, ``reason``) and adds merge diagnostics; ``count``
-    is the number of merged straight lines selected as evidence.
-    ``merged_lines`` in the result contains all merged lines before length and
-    angle-consensus filtering.
+    ``settings``, when given, replaces the individual keyword values.  Merge
+    tolerances are described by :class:`DetectionSettings` and are resolved
+    against the actual resized analysis dimensions.  The result retains the
+    original keys (``angle``, ``correction``, ``status``, ``count``,
+    ``spread``, ``reason``) and adds merge diagnostics with the effective
+    angle, perpendicular-distance and gap tolerances; ``count`` is the number
+    of merged straight lines selected as evidence.  ``merged_lines`` in the
+    result contains all merged lines before length and angle-consensus
+    filtering.
     """
     if settings is None:
         settings = DetectionSettings(
@@ -427,6 +527,11 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
             min_line_pixels=min_line_pixels,
             analysis_size=analysis_size,
             resample=resample,
+            merge_angle=merge_angle,
+            merge_distance_percent=merge_distance_percent,
+            merge_distance_pixels=merge_distance_pixels,
+            merge_gap_percent=merge_gap_percent,
+            merge_gap_pixels=merge_gap_pixels,
         )
     small = image.convert('RGB')
     small.thumbnail((settings.analysis_size, settings.analysis_size),
@@ -437,7 +542,8 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
         orientation: effective_min_line_pixels(settings, height, width, orientation)
         for orientation in ORIENTATIONS
     }
-    perpendicular_tolerance, gap_tolerance = _merge_tolerances(height, width)
+    perpendicular_tolerance, gap_tolerance = effective_merge_tolerances(
+        settings, height, width)
 
     found = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD).detect(gray)[0]
     fragments, ignored_frame = [], 0
@@ -453,7 +559,7 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
 
     merged_lines = merge_collinear_segments(
         [fragment['coords'] for fragment in fragments], (height, width),
-        angle_tolerance_deg=MERGE_ANGLE_TOLERANCE_DEG,
+        angle_tolerance_deg=settings.merge_angle,
         perpendicular_tolerance_px=perpendicular_tolerance,
         gap_tolerance_px=gap_tolerance)
     selected = [line for line in merged_lines
@@ -461,9 +567,11 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
                 and abs(line['angle']) <= settings.max_angle]
 
     diagnostics = {
-        'angle_tolerance_deg': MERGE_ANGLE_TOLERANCE_DEG,
-        'perpendicular_tolerance_px': round(perpendicular_tolerance, 3),
-        'gap_tolerance_px': round(gap_tolerance, 3),
+        'angle_tolerance_deg': settings.merge_angle,
+        # Report the effective values unrounded: tiny positive tolerances are
+        # still used by the merge, so diagnostics must not round them to zero.
+        'perpendicular_tolerance_px': perpendicular_tolerance,
+        'gap_tolerance_px': gap_tolerance,
         'fragments': len(fragments),
         'merged': len(merged_lines),
         'selected': len(selected),

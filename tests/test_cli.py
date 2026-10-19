@@ -27,8 +27,13 @@ class CliTests(unittest.TestCase):
                 mock.patch.object(cli, 'run_batch') as run_batch:
             cli.main(['--max-angle', '7.5', '--min-line-percent', '25',
                       '--min-line-pixels', '80', '--analysis-size', '1200',
-                      '--resample', 'BICUBIC', '--recursive',
-                      '--output', 'results'])
+                      '--resample', 'BICUBIC',
+                      '--merge-angle', '1.2',
+                      '--merge-distance-percent', '0.3',
+                      '--merge-distance-pixels', '2.5',
+                      '--merge-gap-percent', '0.8',
+                      '--merge-gap-pixels', '4.5',
+                      '--recursive', '--output', 'results'])
         gui.assert_called_once()
         self.assertTrue(gui.call_args.kwargs['recursive'])
         self.assertEqual(gui.call_args.kwargs['output'], 'results')
@@ -39,6 +44,11 @@ class CliTests(unittest.TestCase):
             'min_line_pixels': 80.0,
             'analysis_size': 1200,
             'resample': 'bicubic',
+            'merge_angle': 1.2,
+            'merge_distance_percent': 0.3,
+            'merge_distance_pixels': 2.5,
+            'merge_gap_percent': 0.8,
+            'merge_gap_pixels': 4.5,
         })
         run_batch.assert_not_called()
 
@@ -64,7 +74,12 @@ class CliTests(unittest.TestCase):
                 cli.main([source, '--output', 'results', '--recursive',
                           '--max-angle', '7.5', '--min-line-percent', '30',
                           '--min-line-pixels', '100', '--analysis-size', '800',
-                          '--resample', 'nearest'])
+                          '--resample', 'nearest',
+                          '--merge-angle', '1.1',
+                          '--merge-distance-percent', '0.4',
+                          '--merge-distance-pixels', '3',
+                          '--merge-gap-percent', '1.5',
+                          '--merge-gap-pixels', '8'])
             gui.assert_not_called()
             args, kwargs = run_batch.call_args
             self.assertEqual(args, (source, 'results', True))
@@ -75,6 +90,11 @@ class CliTests(unittest.TestCase):
                 'min_line_pixels': 100.0,
                 'analysis_size': 800,
                 'resample': 'nearest',
+                'merge_angle': 1.1,
+                'merge_distance_percent': 0.4,
+                'merge_distance_pixels': 3.0,
+                'merge_gap_percent': 1.5,
+                'merge_gap_pixels': 8.0,
             })
 
     def test_invalid_max_angle_is_rejected(self):
@@ -98,6 +118,11 @@ class CliTests(unittest.TestCase):
             ('--min-line-pixels', ['nan', 'inf', '0', '-1', 'abc']),
             ('--analysis-size', ['255', '10001', '2400.5', 'abc']),
             ('--resample', ['cubic', '']),
+            ('--merge-angle', ['0', '45', '45.1', '-1', 'nan', 'inf', 'abc']),
+            ('--merge-distance-percent', ['-0.1', 'nan', 'inf', 'abc']),
+            ('--merge-distance-pixels', ['-0.1', 'nan', 'inf', 'abc']),
+            ('--merge-gap-percent', ['-0.1', 'nan', 'inf', 'abc']),
+            ('--merge-gap-pixels', ['-0.1', 'nan', 'inf', 'abc']),
         ]
         for flag, values in cases:
             for value in values:
@@ -119,6 +144,21 @@ class CliTests(unittest.TestCase):
                         self.assertNotIn(field_name, error_line)
                     gui.assert_not_called()
                     run_batch.assert_not_called()
+
+    def test_zero_merge_distance_and_gap_options_are_valid(self):
+        with mock.patch.object(cli, 'gui') as gui, \
+                mock.patch.object(cli, 'run_batch') as run_batch:
+            cli.main(['--merge-distance-percent', '0',
+                      '--merge-distance-pixels', '0',
+                      '--merge-gap-percent', '0',
+                      '--merge-gap-pixels', '0'])
+        gui.assert_called_once()
+        settings = gui.call_args.kwargs['settings']
+        self.assertEqual(settings.merge_distance_percent, 0.0)
+        self.assertEqual(settings.merge_distance_pixels, 0.0)
+        self.assertEqual(settings.merge_gap_percent, 0.0)
+        self.assertEqual(settings.merge_gap_pixels, 0.0)
+        run_batch.assert_not_called()
 
     def test_allow_large_images_disables_pillow_limit(self):
         original = Image.MAX_IMAGE_PIXELS

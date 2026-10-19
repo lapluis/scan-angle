@@ -2,7 +2,8 @@ import math
 import random
 import unittest
 
-from scan_angle.detection import (DetectionSettings, effective_min_line_pixels,
+from scan_angle.detection import (DetectionSettings, effective_merge_tolerances,
+                                  effective_min_line_pixels,
                                   merge_collinear_segments)
 
 
@@ -186,6 +187,89 @@ class MergeTests(unittest.TestCase):
         self.assertAlmostEqual(by_count[2]['angle'], 0.14, delta=0.03)
         self.assertAlmostEqual(by_count[1]['angle'], 1.4, delta=0.05)
 
+    def test_configured_angle_tolerance_controls_grouping(self):
+        # Both fragments have endpoints within 10 px of the anchor and a
+        # 10 px projected gap.  Their angle difference is about 1.43
+        # degrees, so only a tolerance above that may join them.
+        # The anchor is deliberately the longest fragment so that both
+        # endpoint-distance checks are made against the horizontal line.
+        anchor = (100, 500, 1100, 500)
+        sloped = (1110, 490, 1910, 510)
+        narrow = merge_collinear_segments(
+            [anchor, sloped], (1000, 2000), angle_tolerance_deg=0.75,
+            perpendicular_tolerance_px=20.0, gap_tolerance_px=100.0)
+        wide = merge_collinear_segments(
+            [anchor, sloped], (1000, 2000), angle_tolerance_deg=1.5,
+            perpendicular_tolerance_px=20.0, gap_tolerance_px=100.0)
+        self.assertEqual(len(narrow), 2)
+        self.assertEqual(len(wide), 1)
+        self.assertEqual(wide[0]['member_count'], 2)
+
+    def test_zero_distance_tolerance_requires_exact_collinearity(self):
+        exact = [(100, 500, 200, 500), (210, 500, 300, 500)]
+        offset = [(100, 500, 200, 500), (210, 501, 300, 501)]
+        merged = merge_collinear_segments(
+            exact, (1000, 1000), perpendicular_tolerance_px=0.0,
+            gap_tolerance_px=10.0)
+        separated = merge_collinear_segments(
+            offset, (1000, 1000), perpendicular_tolerance_px=0.0,
+            gap_tolerance_px=10.0)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]['member_count'], 2)
+        self.assertEqual(len(separated), 2)
+        self.assertTrue(all(line['member_count'] == 1 for line in separated))
+
+    def test_zero_gap_tolerance_requires_touching_or_overlapping_intervals(self):
+        touching = [(100, 500, 200, 500), (200, 500, 300, 500)]
+        overlapping = [(100, 500, 200, 500), (150, 500, 300, 500)]
+        positively_separated = [(100, 500, 200, 500), (200.001, 500, 300, 500)]
+        for segments in (touching, overlapping):
+            with self.subTest(segments=segments):
+                merged = merge_collinear_segments(
+                    segments, (1000, 1000), perpendicular_tolerance_px=0.0,
+                    gap_tolerance_px=0.0)
+                self.assertEqual(len(merged), 1)
+                self.assertEqual(merged[0]['member_count'], 2)
+        separated = merge_collinear_segments(
+            positively_separated, (1000, 1000), perpendicular_tolerance_px=0.0,
+            gap_tolerance_px=0.0)
+        self.assertEqual(len(separated), 2)
+
+    def test_merge_tolerances_validate_range_and_finiteness(self):
+        segments = [(100, 500, 200, 500)]
+        invalid = [
+            {'angle_tolerance_deg': 0},
+            {'angle_tolerance_deg': -0.1},
+            {'angle_tolerance_deg': 45},
+            {'angle_tolerance_deg': 46},
+            {'angle_tolerance_deg': float('nan')},
+            {'angle_tolerance_deg': float('inf')},
+            {'perpendicular_tolerance_px': -0.1},
+            {'perpendicular_tolerance_px': float('nan')},
+            {'perpendicular_tolerance_px': float('inf')},
+            {'gap_tolerance_px': -0.1},
+            {'gap_tolerance_px': float('nan')},
+            {'gap_tolerance_px': float('inf')},
+        ]
+        for kwargs in invalid:
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                merge_collinear_segments(segments, (1000, 1000), **kwargs)
+        # Zero distance/gap and any angle strictly inside (0, 45) are valid.
+        merged = merge_collinear_segments(
+            segments, (1000, 1000), angle_tolerance_deg=44.9,
+            perpendicular_tolerance_px=0.0, gap_tolerance_px=0.0)
+        self.assertEqual(len(merged), 1)
+
+    def test_default_low_level_tolerances_match_explicit_legacy_values(self):
+        segments = [(100, 500, 300, 500), (305, 500, 500, 500),
+                    (100, 600, 300, 601)]
+        default = merge_collinear_segments(segments, (1000, 2000))
+        explicit = merge_collinear_segments(
+            segments, (1000, 2000), angle_tolerance_deg=0.75,
+            perpendicular_tolerance_px=max(1.5, 0.0012 * 1000),
+            gap_tolerance_px=max(6.0, 0.005 * 1000))
+        self.assertEqual(default, explicit)
+
     def test_duplicate_fragments_do_not_inflate_support(self):
         segments = [(100, 500, 300, 500),
                     (100, 500, 300, 500),
@@ -237,6 +321,33 @@ class MergeTests(unittest.TestCase):
                 effective_min_line_pixels(settings, 1000, 2000, orientation)
 
 
+class EffectiveMergeToleranceTests(unittest.TestCase):
+    def test_percentages_and_pixel_floors_use_the_short_side(self):
+        # Short side 600: 0.5% = 3 px beats the 1.5 px floor, and 2% = 12 px
+        # beats the 6 px floor.  The long side must not be used.
+        percent_wins = DetectionSettings(merge_distance_percent=0.5,
+                                         merge_distance_pixels=1.5,
+                                         merge_gap_percent=2.0,
+                                         merge_gap_pixels=6.0)
+        self.assertEqual(effective_merge_tolerances(percent_wins, 600, 2400),
+                         (3.0, 12.0))
+
+        # Defaults on the same dimensions: 0.12% = 0.72 px and 0.5% = 3 px,
+        # so both absolute floors win.
+        defaults = DetectionSettings()
+        self.assertEqual(effective_merge_tolerances(defaults, 600, 2400),
+                         (1.5, 6.0))
+
+        # Zero percent and zero pixels produce a genuine zero tolerance, not
+        # an epsilon-substituted positive tolerance.
+        zero = DetectionSettings(merge_distance_percent=0,
+                                 merge_distance_pixels=0,
+                                 merge_gap_percent=0,
+                                 merge_gap_pixels=0)
+        self.assertEqual(effective_merge_tolerances(zero, 600, 2400),
+                         (0.0, 0.0))
+
+
 class SettingsValidationTests(unittest.TestCase):
     def test_defaults(self):
         settings = DetectionSettings()
@@ -246,6 +357,11 @@ class SettingsValidationTests(unittest.TestCase):
             'min_line_pixels': 50.0,
             'analysis_size': 2400,
             'resample': 'lanczos',
+            'merge_angle': 0.75,
+            'merge_distance_percent': 0.12,
+            'merge_distance_pixels': 1.5,
+            'merge_gap_percent': 0.5,
+            'merge_gap_pixels': 6.0,
         })
 
     def test_invalid_numeric_settings_are_rejected(self):
@@ -266,6 +382,24 @@ class SettingsValidationTests(unittest.TestCase):
             {'resample': 'cubic'},
             {'resample': ''},
             {'max_angle': float('nan')},
+            {'merge_angle': 0},
+            {'merge_angle': -0.1},
+            {'merge_angle': 45},
+            {'merge_angle': 45.1},
+            {'merge_angle': float('nan')},
+            {'merge_angle': float('inf')},
+            {'merge_distance_percent': -0.01},
+            {'merge_distance_percent': float('nan')},
+            {'merge_distance_percent': float('inf')},
+            {'merge_distance_pixels': -0.01},
+            {'merge_distance_pixels': float('nan')},
+            {'merge_distance_pixels': float('inf')},
+            {'merge_gap_percent': -0.01},
+            {'merge_gap_percent': float('nan')},
+            {'merge_gap_percent': float('inf')},
+            {'merge_gap_pixels': -0.01},
+            {'merge_gap_pixels': float('nan')},
+            {'merge_gap_pixels': float('inf')},
         ]
         for kwargs in invalid:
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
@@ -279,6 +413,17 @@ class SettingsValidationTests(unittest.TestCase):
         self.assertEqual(DetectionSettings(resample=' LANCZOS ').resample, 'lanczos')
         self.assertEqual(DetectionSettings(resample='bicubic').resample_enum.name,
                          'BICUBIC')
+        settings = DetectionSettings(merge_angle=0.001,
+                                     merge_distance_percent=0,
+                                     merge_distance_pixels=0,
+                                     merge_gap_percent=0,
+                                     merge_gap_pixels=0)
+        self.assertEqual(settings.merge_angle, 0.001)
+        self.assertEqual(settings.merge_distance_percent, 0.0)
+        self.assertEqual(settings.merge_distance_pixels, 0.0)
+        self.assertEqual(settings.merge_gap_percent, 0.0)
+        self.assertEqual(settings.merge_gap_pixels, 0.0)
+        self.assertEqual(DetectionSettings(merge_angle=44.999).merge_angle, 44.999)
 
 
 if __name__ == '__main__':

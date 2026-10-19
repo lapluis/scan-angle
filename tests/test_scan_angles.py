@@ -331,6 +331,145 @@ class OrientationThresholdTests(unittest.TestCase):
         self.assertEqual(lines, [])
 
 
+class MergeSettingPipelineTests(unittest.TestCase):
+    """Merge settings resolved against the actual resized analysis image."""
+
+    @staticmethod
+    def _white(width, height):
+        return Image.new('RGB', (width, height), 'white')
+
+    def test_diagnostics_record_effective_tolerances_on_resized_dimensions(self):
+        # 4000x1000 shrinks to 2400x600 at the default analysis size, so the
+        # short side is 600 for every tolerance calculation.
+        explicit = DetectionSettings(
+            analysis_size=2400, merge_angle=1.25,
+            merge_distance_percent=0.5, merge_distance_pixels=1.5,
+            merge_gap_percent=2.0, merge_gap_pixels=6.0)
+        result, small, _ = estimate_with_segments(
+            self._white(4000, 1000), [], settings=explicit)
+        self.assertEqual(small.size, (2400, 600))
+        self.assertEqual(result['merge']['angle_tolerance_deg'], 1.25)
+        self.assertEqual(result['merge']['perpendicular_tolerance_px'], 3.0)
+        self.assertEqual(result['merge']['gap_tolerance_px'], 12.0)
+
+        # The defaults fall back to their absolute pixel floors here:
+        # 0.12% of 600 = 0.72 px and 0.5% of 600 = 3 px.
+        result, small, _ = estimate_with_segments(self._white(4000, 1000), [])
+        self.assertEqual(small.size, (2400, 600))
+        self.assertEqual(result['merge']['angle_tolerance_deg'], 0.75)
+        self.assertEqual(result['merge']['perpendicular_tolerance_px'], 1.5)
+        self.assertEqual(result['merge']['gap_tolerance_px'], 6.0)
+
+    def test_diagnostics_keep_tiny_positive_tolerances(self):
+        # A positive pixel floor far below 0.001 px is used as-is by the
+        # merge, so diagnostics must report it instead of rounding it to zero.
+        settings = DetectionSettings(
+            merge_distance_percent=0, merge_distance_pixels=0.0001,
+            merge_gap_percent=0, merge_gap_pixels=0.0001)
+        result, _, _ = estimate_with_segments(
+            self._white(400, 200), [], settings=settings)
+        self.assertGreater(result['merge']['perpendicular_tolerance_px'], 0)
+        self.assertGreater(result['merge']['gap_tolerance_px'], 0)
+        self.assertEqual(result['merge']['perpendicular_tolerance_px'], 0.0001)
+        self.assertEqual(result['merge']['gap_tolerance_px'], 0.0001)
+
+    def test_angle_setting_changes_merged_count(self):
+        image = self._white(2000, 1000)
+        # The first fragment is deliberately the longest so it seeds the
+        # anchor group.  The second is 1.43 degrees away, with both endpoints
+        # 10 px from the anchor and a 10 px projected gap.  Distance and gap
+        # tolerances are wide enough that only the angle decides grouping.
+        segments = [(100, 500, 1100, 500), (1110, 490, 1910, 510)]
+        common = dict(merge_distance_percent=0, merge_distance_pixels=20,
+                      merge_gap_percent=0, merge_gap_pixels=100)
+        narrow, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_angle=0.75, **common))
+        wide, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_angle=1.5, **common))
+        self.assertEqual(narrow['merged_count'], 2)
+        self.assertEqual(wide['merged_count'], 1)
+
+    def test_distance_percent_and_pixel_floor_change_merging(self):
+        # Actual analysis image is 2400x600, short side 600.  The fragments
+        # are parallel with a 2 px perpendicular offset and a 10 px gap.
+        image = self._white(4000, 1000)
+        segments = [(200, 300, 1000, 300), (1010, 302, 1800, 302)]
+        common = dict(merge_gap_percent=0, merge_gap_pixels=100)
+        floor, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_distance_percent=0.12,
+                                       merge_distance_pixels=1.5, **common))
+        percent, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_distance_percent=0.5,
+                                       merge_distance_pixels=1.5, **common))
+        pixels, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_distance_percent=0,
+                                       merge_distance_pixels=2.5, **common))
+        # 0.12% of 600 = 0.72 px, so the 1.5 px floor cannot bridge 2 px.
+        self.assertEqual(floor['merged_count'], 2)
+        # 0.5% of 600 = 3 px, and a 2.5 px floor are both wide enough.
+        self.assertEqual(percent['merged_count'], 1)
+        self.assertEqual(pixels['merged_count'], 1)
+
+    def test_gap_percent_and_pixel_floor_change_merging(self):
+        # Actual analysis image is 2400x600, short side 600.  The exactly
+        # collinear fragments are separated by a 5 px projected gap.
+        image = self._white(4000, 1000)
+        segments = [(200, 300, 1000, 300), (1005, 300, 1800, 300)]
+        common = dict(merge_distance_percent=0, merge_distance_pixels=0)
+        floor, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_gap_percent=0.5,
+                                       merge_gap_pixels=6, **common))
+        percent, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_gap_percent=2,
+                                       merge_gap_pixels=0, **common))
+        below, _, _ = estimate_with_segments(
+            image, segments,
+            settings=DetectionSettings(merge_gap_percent=0.5,
+                                       merge_gap_pixels=0, **common))
+        # 0.5% of 600 = 3 px cannot bridge a 5 px gap; both the 6 px floor
+        # and 2% (12 px) can.
+        self.assertEqual(below['merged_count'], 2)
+        self.assertEqual(floor['merged_count'], 1)
+        self.assertEqual(percent['merged_count'], 1)
+
+    def test_zero_distance_and_gap_semantics_in_estimate_pipeline(self):
+        image = self._white(2000, 1000)
+        zero = dict(merge_angle=0.75, merge_distance_percent=0,
+                    merge_distance_pixels=0, merge_gap_percent=0,
+                    merge_gap_pixels=0)
+        touching = [(200, 300, 1000, 300), (1000, 300, 1800, 300)]
+        overlapping = [(200, 300, 1000, 300), (900, 300, 1800, 300)]
+        separated = [(200, 300, 1000, 300), (1001, 300, 1800, 300)]
+        offset = [(200, 300, 1000, 300), (1000, 300.5, 1800, 300.5)]
+        expected = [(touching, 1), (overlapping, 1),
+                    (separated, 2), (offset, 2)]
+        for segments, merged_count in expected:
+            with self.subTest(segments=segments):
+                result, _, _ = estimate_with_segments(
+                    image, segments, settings=DetectionSettings(**zero))
+                self.assertEqual(result['merged_count'], merged_count)
+
+    def test_defaults_preserve_existing_merge_results(self):
+        image = self._white(2000, 1000)
+        segments = [(200, 500, 1000, 500), (1005, 501, 1800, 501),
+                    (200, 200, 200, 800)]
+        default, _, _ = estimate_with_segments(image, segments)
+        explicit, _, _ = estimate_with_segments(
+            image, segments, merge_angle=0.75, merge_distance_percent=0.12,
+            merge_distance_pixels=1.5, merge_gap_percent=0.5,
+            merge_gap_pixels=6.0)
+        self.assertEqual(default['angle'], explicit['angle'])
+        self.assertEqual(default['merge'], explicit['merge'])
+        self.assertEqual(default['merged_lines'], explicit['merged_lines'])
+
+
 class BatchTests(unittest.TestCase):
     def test_multipage_bad_file_and_output_exclusion(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -455,27 +594,51 @@ class BatchTests(unittest.TestCase):
             destination = Path(directory)/'output'
             rows = run_batch(source, destination, max_angle=9,
                              min_line_percent=22, min_line_pixels=60,
-                             analysis_size=1000, resample='hamming')
+                             analysis_size=2000, resample='hamming',
+                             merge_angle=1.1, merge_distance_percent=0.3,
+                             merge_distance_pixels=2.0,
+                             merge_gap_percent=0.8, merge_gap_pixels=4.0)
             self.assertEqual(len(rows), 1)
             details = json.loads((destination/'details.json').read_text(encoding='utf-8'))
             self.assertEqual(details[0]['settings'], {
                 'max_angle': 9.0,
                 'min_line_percent': 22.0,
                 'min_line_pixels': 60.0,
-                'analysis_size': 1000,
+                'analysis_size': 2000,
                 'resample': 'hamming',
+                'merge_angle': 1.1,
+                'merge_distance_percent': 0.3,
+                'merge_distance_pixels': 2.0,
+                'merge_gap_percent': 0.8,
+                'merge_gap_pixels': 4.0,
             })
             self.assertGreater(details[0]['count'], 0)
+            # rectangle() is 1400x1700 and is not resized at analysis_size
+            # 2000, so the short side is 1400 px: distance max(2.0, 4.2) =
+            # 4.2 and gap max(4.0, 11.2) = 11.2.
+            self.assertEqual(details[0]['merge']['angle_tolerance_deg'], 1.1)
+            self.assertEqual(details[0]['merge']['perpendicular_tolerance_px'], 4.2)
+            self.assertEqual(details[0]['merge']['gap_tolerance_px'], 11.2)
 
     def test_batch_validates_settings_before_creating_output(self):
-        with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory)/'input'
-            source.mkdir()
-            (source/'bad.png').write_bytes(b'invalid')
-            destination = Path(directory)/'output'
-            with self.assertRaises(ValueError):
-                run_batch(source, destination, min_line_percent=float('nan'))
-            self.assertFalse(destination.exists())
+        invalid = [
+            dict(min_line_percent=float('nan')),
+            dict(merge_angle=0),
+            dict(merge_angle=45),
+            dict(merge_distance_percent=-1),
+            dict(merge_distance_pixels=float('nan')),
+            dict(merge_gap_percent=float('inf')),
+            dict(merge_gap_pixels=-0.1),
+        ]
+        for kwargs in invalid:
+            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as directory:
+                source = Path(directory)/'input'
+                source.mkdir()
+                (source/'bad.png').write_bytes(b'invalid')
+                destination = Path(directory)/'output'
+                with self.assertRaises(ValueError):
+                    run_batch(source, destination, **kwargs)
+                self.assertFalse(destination.exists())
 
     def test_batch_failure_details_keep_settings(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -483,7 +646,12 @@ class BatchTests(unittest.TestCase):
             source.mkdir()
             (source/'bad.png').write_bytes(b'invalid')
             destination = Path(directory)/'output'
-            settings = DetectionSettings(analysis_size=800, resample='box')
+            settings = DetectionSettings(analysis_size=800, resample='box',
+                                         merge_angle=1.3,
+                                         merge_distance_percent=0.4,
+                                         merge_distance_pixels=2.5,
+                                         merge_gap_percent=1.25,
+                                         merge_gap_pixels=7.5)
             rows = run_batch(source, destination, settings=settings)
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0][FIELDS[4]], '读取失败')

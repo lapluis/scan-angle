@@ -7,7 +7,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
 
-from .detection import DetectionSettings, estimate
+from .detection import (MERGE_ANGLE_TOLERANCE_DEG,
+                        MERGE_DISTANCE_TOLERANCE_MIN_PX,
+                        MERGE_DISTANCE_TOLERANCE_PERCENT,
+                        MERGE_GAP_TOLERANCE_MIN_PX,
+                        MERGE_GAP_TOLERANCE_PERCENT, DetectionSettings,
+                        estimate)
 
 EXTENSIONS = {'.tif', '.tiff', '.png', '.jpg', '.jpeg', '.bmp', '.webp'}
 FIELDS = ['文件', '页码', '偏差角度_度_顺时针为正', '转正角度_度_顺时针为正',
@@ -36,15 +41,21 @@ def _failure_detail(relative, page, error, settings):
 def run_batch(source, destination, recursive=False, max_angle=15,
               progress=lambda s: None, *, min_line_percent=10.0,
               min_line_pixels=50.0, analysis_size=2400, resample='lanczos',
+              merge_angle=MERGE_ANGLE_TOLERANCE_DEG,
+              merge_distance_percent=MERGE_DISTANCE_TOLERANCE_PERCENT,
+              merge_distance_pixels=MERGE_DISTANCE_TOLERANCE_MIN_PX,
+              merge_gap_percent=MERGE_GAP_TOLERANCE_PERCENT,
+              merge_gap_pixels=MERGE_GAP_TOLERANCE_MIN_PX,
               settings=None, file_progress=None):
     """Process every supported image and write CSV, JSON and previews.
 
     ``settings``, when given, replaces the individual keyword settings.  All
-    settings are validated before any output directory is created.  The row
-    count field is the number of *merged* straight lines, not the number of
-    raw detector fragments. Successful result rows additionally include
-    ``fragment_count`` and ``merged_count`` for the GUI; CSV columns stay
-    restricted to ``FIELDS``.
+    settings are validated before any output directory is created.  Merge
+    tolerance keywords use the same units and ranges as
+    :class:`DetectionSettings`.  The row count field is the number of
+    *merged* straight lines, not the number of raw detector fragments.
+    Successful result rows additionally include ``fragment_count`` and
+    ``merged_count`` for the GUI; CSV columns stay restricted to ``FIELDS``.
     ``file_progress(completed, total)`` reports file counts: once at zero
     after discovery and once after each file, including failed files.
     A multi-page image advances the count only after all its pages finish.
@@ -56,6 +67,11 @@ def run_batch(source, destination, recursive=False, max_angle=15,
             min_line_pixels=min_line_pixels,
             analysis_size=analysis_size,
             resample=resample,
+            merge_angle=merge_angle,
+            merge_distance_percent=merge_distance_percent,
+            merge_distance_pixels=merge_distance_pixels,
+            merge_gap_percent=merge_gap_percent,
+            merge_gap_pixels=merge_gap_pixels,
         )
     source, destination = Path(source).resolve(), Path(destination).resolve()
     if not source.is_dir():

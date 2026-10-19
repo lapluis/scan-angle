@@ -76,6 +76,33 @@ def gui(settings=None, *, recursive=False, output=None):
     ttk.Entry(options2,width=7,textvariable=pixels).pack(side='left',padx=(5,2))
     ttk.Label(options2,text='分析像素').pack(side='left')
 
+    merge_angle_row=ttk.Frame(frame);merge_angle_row.pack(fill='x',pady=3)
+    ttk.Label(merge_angle_row,text='合并角度差 ≤').pack(side='left')
+    merge_angle=tk.StringVar(value=_number_text(settings.merge_angle))
+    ttk.Entry(merge_angle_row,width=6,textvariable=merge_angle).pack(side='left',padx=(5,2))
+    ttk.Label(merge_angle_row,text='°').pack(side='left')
+
+    merge_distance_row=ttk.Frame(frame);merge_distance_row.pack(fill='x',pady=3)
+    ttk.Label(merge_distance_row,text='垂直距离容差：短边').pack(side='left')
+    merge_distance_percent=tk.StringVar(value=_number_text(settings.merge_distance_percent))
+    ttk.Entry(merge_distance_row,width=6,
+              textvariable=merge_distance_percent).pack(side='left',padx=(5,2))
+    ttk.Label(merge_distance_row,text='%，至少').pack(side='left')
+    merge_distance_pixels=tk.StringVar(value=_number_text(settings.merge_distance_pixels))
+    ttk.Entry(merge_distance_row,width=7,
+              textvariable=merge_distance_pixels).pack(side='left',padx=(5,2))
+    ttk.Label(merge_distance_row,text='分析像素').pack(side='left')
+
+    merge_gap_row=ttk.Frame(frame);merge_gap_row.pack(fill='x',pady=3)
+    ttk.Label(merge_gap_row,text='间隙容差：短边').pack(side='left')
+    merge_gap_percent=tk.StringVar(value=_number_text(settings.merge_gap_percent))
+    ttk.Entry(merge_gap_row,width=6,textvariable=merge_gap_percent).pack(side='left',padx=(5,2))
+    ttk.Label(merge_gap_row,text='%，至少').pack(side='left')
+    merge_gap_pixels=tk.StringVar(value=_number_text(settings.merge_gap_pixels))
+    ttk.Entry(merge_gap_row,width=7,
+              textvariable=merge_gap_pixels).pack(side='left',padx=(5,2))
+    ttk.Label(merge_gap_row,text='分析像素').pack(side='left')
+
     ttk.Label(frame,text='正数＝顺时针；负数＝逆时针').pack(anchor='w',pady=(4,10))
     tree=ttk.Treeview(frame,columns=('file','page','angle','merged','state'),show='headings',height=9)
     for key,title,width in [('file','文件',280),('page','页',45),('angle','偏差角度（°）',120),
@@ -122,6 +149,11 @@ def gui(settings=None, *, recursive=False, output=None):
                 min_line_pixels=read_number(pixels,'最短直线像素'),
                 analysis_size=read_size(analysis_size),
                 resample=resample.get(),
+                merge_angle=read_number(merge_angle,'合并角度差'),
+                merge_distance_percent=read_number(merge_distance_percent,'垂直距离容差百分比'),
+                merge_distance_pixels=read_number(merge_distance_pixels,'垂直距离容差像素'),
+                merge_gap_percent=read_number(merge_gap_percent,'间隙容差百分比'),
+                merge_gap_pixels=read_number(merge_gap_pixels,'间隙容差像素'),
             )
             if not 1 <= config.max_angle <= 30:
                 raise ValueError('最大偏角必须在 1～30 之间')
