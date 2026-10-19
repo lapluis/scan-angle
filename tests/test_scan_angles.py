@@ -201,6 +201,8 @@ class BatchTests(unittest.TestCase):
             self.assertGreaterEqual(entry['merged_count'], entry['count'])
             self.assertEqual(entry['count'], len(entry['lines']))
             self.assertEqual(rows[0][FIELDS[5]], entry['count'])
+            self.assertEqual(rows[0]['fragment_count'], entry['fragment_count'])
+            self.assertEqual(rows[0]['merged_count'], entry['merged_count'])
             for line in entry['lines']:
                 self.assertGreaterEqual(line['member_count'], 1)
                 self.assertLessEqual(line['support_length'], line['span_length'])

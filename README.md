@@ -78,7 +78,7 @@ max(min_line_pixels, min_line_percent / 100 × min(分析图高, 分析图宽))
 | `details.json` | 检测角度、合并后直线坐标、本次设置与合并诊断信息 |
 | `previews/` | 标出参与估算的**合并后**直线的预览图 |
 
-`angles.csv` 中“合并直线数”以及 `details.json` / 界面中的 `count` 都是**合并、筛选后参与角度共识的直线数量**，不是 OpenCV 原始线段数量。预览中的红线同样对应这些合并直线。
+`angles.csv` 中“合并直线数”及 `details.json` 中的 `count` 是**合并、筛选后参与角度共识的直线数量**，预览红线对应这些入选直线。窗口“直线数”列显示 **检测数 / 合并数**：前者是进入合并的线段数（`fragment_count`），后者是最短长度筛选前的合并直线总数（`merged_count`）。读取失败时显示 `— / —`。
 
 `details.json` 每条记录包含：
 

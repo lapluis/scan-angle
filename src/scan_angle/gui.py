@@ -21,14 +21,13 @@ def gui(settings=None, *, recursive=False, output=None):
     from tkinter import ttk, filedialog, messagebox
     settings = settings or DetectionSettings()
     root = tk.Tk()
-    root.title('扫描偏角检测 · 本地批处理')
+    root.title('扫图偏角检测')
     root.geometry('980x700')
     root.minsize(880,660)
     root.option_add('*Font', ('Microsoft YaHei UI', 10))
     frame = ttk.Frame(root,padding=16)
     frame.pack(fill='both',expand=True)
-    ttk.Label(frame,text='扫描偏角检测',font=('Microsoft YaHei UI',19,'bold')).pack(anchor='w')
-    ttk.Label(frame,text='按纸边或长直线估算偏角。正数＝顺时针；负数＝逆时针。原图不会修改。').pack(anchor='w',pady=(4,10))
+    ttk.Label(frame,text='正数＝顺时针；负数＝逆时针').pack(anchor='w',pady=(4,10))
     source, dest = tk.StringVar(), tk.StringVar(value=str(output) if output else '')
     def choose_source():
         chosen=filedialog.askdirectory(title='选择扫描图片文件夹')
@@ -47,10 +46,11 @@ def gui(settings=None, *, recursive=False, output=None):
     options=ttk.Frame(frame);options.pack(fill='x',pady=(7,2))
     recursive_var=tk.BooleanVar(value=bool(recursive))
     ttk.Checkbutton(options,text='包含子文件夹',variable=recursive_var).pack(side='left')
-    ttk.Label(options,text='    最大偏角 ±').pack(side='left')
+    angle_options=ttk.Frame(frame);angle_options.pack(fill='x',pady=3)
+    ttk.Label(angle_options,text='最大偏角 ±').pack(side='left')
     angle=tk.StringVar(value=_number_text(settings.max_angle))
-    ttk.Spinbox(options,from_=1,to=30,width=5,textvariable=angle).pack(side='left')
-    ttk.Label(options,text='°（不判断 90° / 180° 文字朝向）').pack(side='left')
+    ttk.Spinbox(angle_options,from_=1,to=30,width=5,textvariable=angle).pack(side='left')
+    ttk.Label(angle_options,text='°').pack(side='left')
 
     options2=ttk.Frame(frame);options2.pack(fill='x',pady=3)
     ttk.Label(options2,text='最短直线 ≥ 分析图短边').pack(side='left')
@@ -59,26 +59,24 @@ def gui(settings=None, *, recursive=False, output=None):
     ttk.Label(options2,text='% 且 ≥').pack(side='left')
     pixels=tk.StringVar(value=_number_text(settings.min_line_pixels))
     ttk.Entry(options2,width=7,textvariable=pixels).pack(side='left',padx=(5,2))
-    ttk.Label(options2,text='分析像素（取较大值）').pack(side='left')
+    ttk.Label(options2,text='分析像素').pack(side='left')
 
     options3=ttk.Frame(frame);options3.pack(fill='x',pady=3)
     ttk.Label(options3,text='分析图最长边').pack(side='left')
     analysis_size=tk.StringVar(value=_number_text(settings.analysis_size))
     ttk.Spinbox(options3,from_=MIN_ANALYSIS_SIZE,to=MAX_ANALYSIS_SIZE,
                 increment=100,width=8,textvariable=analysis_size).pack(side='left',padx=(5,2))
-    ttk.Label(options3,text='像素（不放大原图）    缩放算法').pack(side='left')
+    ttk.Label(options3,text='像素（仅缩小）    缩放算法').pack(side='left')
     resample=tk.StringVar(value=settings.resample)
     ttk.Combobox(options3,values=tuple(RESAMPLE_ALGORITHMS),state='readonly',
                  width=10,textvariable=resample).pack(side='left',padx=(5,0))
-    ttk.Label(frame,text='“分析像素”和“分析图”指缩放后的分析图（最长边不超过设定值），不是原图像素。',
-              foreground='#555555').pack(anchor='w',pady=(2,4))
 
     tree=ttk.Treeview(frame,columns=('file','page','angle','merged','state'),show='headings',height=9)
     for key,title,width in [('file','文件',320),('page','页',45),('angle','偏差角度（°）',120),
-                            ('merged','合并直线数',95),('state','状态',150)]:
+                            ('merged','直线数',115),('state','状态',150)]:
         tree.heading(key,text=title);tree.column(key,width=width)
     tree.pack(fill='both',expand=True,pady=7)
-    status=tk.StringVar(value='选择图片文件夹后开始。结果包含 CSV 和红色标线预览。')
+    status=tk.StringVar(value='')
     ttk.Label(frame,textvariable=status,wraplength=930).pack(anchor='w',pady=4)
     bar=ttk.Progressbar(frame,mode='indeterminate');bar.pack(fill='x',pady=4)
     messages=queue.Queue()
@@ -143,13 +141,16 @@ def gui(settings=None, *, recursive=False, output=None):
                     else:
                         for row in data:
                             a=row[FIELDS[2]]
-                            merged=row[FIELDS[5]]
+                            detected=row.get('fragment_count')
+                            merged=row.get('merged_count')
+                            detected_text='—' if detected is None else str(detected)
+                            merged_text='—' if merged is None else str(merged)
                             tree.insert('', 'end',values=(row[FIELDS[0]],row[FIELDS[1]],
                                                           '—' if a is None else f'{a:+.3f}',
-                                                          '—' if merged is None else str(merged),
+                                                          f'{detected_text} / {merged_text}',
                                                           row[FIELDS[4]]))
                         good=sum(r[FIELDS[4]]=='可信' for r in data)
-                        merged_total=sum(int(r[FIELDS[5]] or 0) for r in data)
+                        merged_total=sum(int(r.get('merged_count') or 0) for r in data)
                         status.set(f'完成：{len(data)} 页；可信 {good} 页；合并直线共 {merged_total} 条；其余请核对。已保存 angles.csv 和预览图。')
         except queue.Empty: pass
         root.after(100,poll)

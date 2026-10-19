@@ -31,7 +31,9 @@ def run_batch(source, destination, recursive=False, max_angle=15,
     ``settings``, when given, replaces the individual keyword settings.  All
     settings are validated before any output directory is created.  The row
     count field is the number of *merged* straight lines, not the number of
-    raw detector fragments.
+    raw detector fragments. Successful result rows additionally include
+    ``fragment_count`` and ``merged_count`` for the GUI; CSV columns stay
+    restricted to ``FIELDS``.
     """
     if settings is None:
         settings = DetectionSettings(
@@ -73,7 +75,9 @@ def run_batch(source, destination, recursive=False, max_angle=15,
                         small.save(previews/preview_name, quality=90)
                         row = [str(relative),page+1,result['angle'],result['correction'],result['status'],
                                result['count'],result['spread'],result['reason'],f'previews/{preview_name}']
-                        rows.append(dict(zip(FIELDS,row)))
+                        rows.append(dict(zip(FIELDS,row),
+                                         fragment_count=result['fragment_count'],
+                                         merged_count=result['merged_count']))
                         detail.append(dict(file=str(relative),page=page+1,**result,
                                            settings=settings.as_dict(),lines=lines))
                         progress(f"  第 {page+1} 页: {result['angle']}° · {result['status']}")
@@ -86,6 +90,6 @@ def run_batch(source, destination, recursive=False, max_angle=15,
     with (destination/'angles.csv').open('w',encoding='utf-8-sig',newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=FIELDS)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows({field: row[field] for field in FIELDS} for row in rows)
     (destination/'details.json').write_text(json.dumps(detail,ensure_ascii=False,indent=2),encoding='utf-8')
     return rows
