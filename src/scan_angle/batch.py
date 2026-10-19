@@ -14,11 +14,22 @@ FIELDS = ['文件', '页码', '偏差角度_度_顺时针为正', '转正角度_
           '状态', '合并直线数', '角度离散_度', '说明', '预览']
 
 
+def _draw_preview(image, merged_lines, selected_lines):
+    """Draw all merged lines blue, then highlight selected evidence red."""
+    preview = image.copy()
+    draw = ImageDraw.Draw(preview)
+    for line in merged_lines:
+        draw.line(tuple(line['coords']), fill=(30, 120, 255), width=1)
+    for line in selected_lines:
+        draw.line(tuple(line['coords']), fill=(255, 30, 40), width=3)
+    return preview
+
+
 def _failure_detail(relative, page, error, settings):
     return dict(file=str(relative), page=page, angle=None, correction=None,
                 status='读取失败', count=0, spread=None, reason=str(error),
                 fragment_count=0, merged_count=0, threshold_px=None,
-                merge=None, lines=[], settings=settings.as_dict(),
+                merge=None, merged_lines=[], lines=[], settings=settings.as_dict(),
                 error=str(error))
 
 
@@ -73,11 +84,9 @@ def run_batch(source, destination, recursive=False, max_angle=15,
                         original.seek(page)
                         oriented = ImageOps.exif_transpose(original)
                         result, small, lines = estimate(oriented, settings=settings)
-                        draw = ImageDraw.Draw(small)
-                        for line in lines:
-                            draw.line(tuple(line['coords']), fill=(255,30,40), width=3)
+                        preview = _draw_preview(small, result['merged_lines'], lines)
                         preview_name = f'{index:05d}_{path.stem}_p{page+1}.jpg'
-                        small.save(previews/preview_name, quality=90)
+                        preview.save(previews/preview_name, quality=90)
                         row = [str(relative),page+1,result['angle'],result['correction'],result['status'],
                                result['count'],result['spread'],result['reason'],f'previews/{preview_name}']
                         rows.append(dict(zip(FIELDS,row),

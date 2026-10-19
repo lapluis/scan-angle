@@ -78,8 +78,8 @@ def gui(settings=None, *, recursive=False, output=None):
 
     ttk.Label(frame,text='正数＝顺时针；负数＝逆时针').pack(anchor='w',pady=(4,10))
     tree=ttk.Treeview(frame,columns=('file','page','angle','merged','state'),show='headings',height=9)
-    for key,title,width in [('file','文件',320),('page','页',45),('angle','偏差角度（°）',120),
-                            ('merged','直线数',115),('state','状态',150)]:
+    for key,title,width in [('file','文件',280),('page','页',45),('angle','偏差角度（°）',120),
+                            ('merged','直线数（检测 / 合并 / 入选）',230),('state','状态',150)]:
         tree.heading(key,text=title);tree.column(key,width=width)
     tree.pack(fill='both',expand=True,pady=(7,0))
     status=tk.StringVar(value='')
@@ -172,9 +172,11 @@ def gui(settings=None, *, recursive=False, output=None):
                             merged=row.get('merged_count')
                             detected_text='—' if detected is None else str(detected)
                             merged_text='—' if merged is None else str(merged)
+                            selected=row[FIELDS[5]] if detected is not None else None
+                            selected_text='—' if selected is None else str(selected)
                             tree.insert('', 'end',values=(row[FIELDS[0]],row[FIELDS[1]],
                                                           '—' if a is None else f'{a:+.3f}',
-                                                          f'{detected_text} / {merged_text}',
+                                                          f'{detected_text} / {merged_text} / {selected_text}',
                                                           row[FIELDS[4]]))
                         good=sum(r[FIELDS[4]]=='可信' for r in data)
                         merged_total=sum(int(r.get('merged_count') or 0) for r in data)

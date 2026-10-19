@@ -97,6 +97,8 @@ class EstimateTests(unittest.TestCase):
         self.assertIsNone(too_short['angle'])
         self.assertEqual(too_short['count'], 0)
         self.assertEqual(lines, [])
+        self.assertGreater(too_short['merged_count'], 0)
+        self.assertEqual(len(too_short['merged_lines']), too_short['merged_count'])
 
         # 99.9% of the 1400 px short side is longer than any rectangle edge
         # that survives merging on its own.
@@ -205,6 +207,8 @@ class BatchTests(unittest.TestCase):
             self.assertGreaterEqual(entry['fragment_count'], entry['merged_count'])
             self.assertGreaterEqual(entry['merged_count'], entry['count'])
             self.assertEqual(entry['count'], len(entry['lines']))
+            self.assertEqual(entry['merged_count'], len(entry['merged_lines']))
+            self.assertTrue(all(line in entry['merged_lines'] for line in entry['lines']))
             self.assertEqual(rows[0][FIELDS[5]], entry['count'])
             self.assertEqual(rows[0]['fragment_count'], entry['fragment_count'])
             self.assertEqual(rows[0]['merged_count'], entry['merged_count'])

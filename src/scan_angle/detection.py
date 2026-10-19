@@ -399,7 +399,8 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
     replaces the individual keyword values.  The result retains the original
     keys (``angle``, ``correction``, ``status``, ``count``, ``spread``,
     ``reason``) and adds merge diagnostics; ``count`` is the number of merged
-    straight lines selected as evidence.
+    straight lines selected as evidence. ``merged_lines`` in the result
+    contains all merged lines before length and angle-consensus filtering.
     """
     if settings is None:
         settings = DetectionSettings(
@@ -450,6 +451,7 @@ def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0
     common = {
         'fragment_count': len(fragments),
         'merged_count': len(merged_lines),
+        'merged_lines': merged_lines,
         'threshold_px': round(threshold, 3),
         'merge': diagnostics,
     }
