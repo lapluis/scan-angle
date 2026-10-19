@@ -75,9 +75,9 @@ def gui(settings=None, *, recursive=False, output=None):
     for key,title,width in [('file','文件',320),('page','页',45),('angle','偏差角度（°）',120),
                             ('merged','直线数',115),('state','状态',150)]:
         tree.heading(key,text=title);tree.column(key,width=width)
-    tree.pack(fill='both',expand=True,pady=7)
+    tree.pack(fill='both',expand=True,pady=(7,0))
     status=tk.StringVar(value='')
-    ttk.Label(frame,textvariable=status,wraplength=930).pack(anchor='w',pady=4)
+    status_label=ttk.Label(frame,textvariable=status,wraplength=930)
     progress_row=ttk.Frame(frame);progress_row.pack(fill='x',pady=4)
     bar=ttk.Progressbar(progress_row,mode='determinate',maximum=1,value=0)
     bar.pack(side='left',fill='x',expand=True,padx=(0,8))
@@ -85,6 +85,12 @@ def gui(settings=None, *, recursive=False, output=None):
     ttk.Label(progress_row,textvariable=file_count).pack(side='right')
     messages=queue.Queue()
     buttons=ttk.Frame(frame);buttons.pack(fill='x',pady=5)
+    def show_status(*_):
+        if status.get():
+            status_label.pack(after=progress_row,anchor='w',pady=4)
+        else:
+            status_label.pack_forget()
+    status.trace_add('write',show_status)
     running=[False]
 
     def read_number(variable, label):
