@@ -7,14 +7,40 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
 
-from .detection import estimate
+from .detection import DetectionSettings, estimate
 
 EXTENSIONS = {'.tif', '.tiff', '.png', '.jpg', '.jpeg', '.bmp', '.webp'}
 FIELDS = ['文件', '页码', '偏差角度_度_顺时针为正', '转正角度_度_顺时针为正',
-          '状态', '一致线段数', '角度离散_度', '说明', '预览']
+          '状态', '合并直线数', '角度离散_度', '说明', '预览']
 
 
-def run_batch(source, destination, recursive=False, max_angle=10, progress=lambda s: None):
+def _failure_detail(relative, page, error, settings):
+    return dict(file=str(relative), page=page, angle=None, correction=None,
+                status='读取失败', count=0, spread=None, reason=str(error),
+                fragment_count=0, merged_count=0, threshold_px=None,
+                merge=None, lines=[], settings=settings.as_dict(),
+                error=str(error))
+
+
+def run_batch(source, destination, recursive=False, max_angle=10,
+              progress=lambda s: None, *, min_line_percent=18.0,
+              min_line_pixels=45.0, analysis_size=2400, resample='lanczos',
+              settings=None):
+    """Process every supported image and write CSV, JSON and previews.
+
+    ``settings``, when given, replaces the individual keyword settings.  All
+    settings are validated before any output directory is created.  The row
+    count field is the number of *merged* straight lines, not the number of
+    raw detector fragments.
+    """
+    if settings is None:
+        settings = DetectionSettings(
+            max_angle=max_angle,
+            min_line_percent=min_line_percent,
+            min_line_pixels=min_line_pixels,
+            analysis_size=analysis_size,
+            resample=resample,
+        )
     source, destination = Path(source).resolve(), Path(destination).resolve()
     if not source.is_dir():
         raise ValueError('输入文件夹不存在')
@@ -39,7 +65,7 @@ def run_batch(source, destination, recursive=False, max_angle=10, progress=lambd
                     try:
                         original.seek(page)
                         oriented = ImageOps.exif_transpose(original)
-                        result, small, lines = estimate(oriented, max_angle)
+                        result, small, lines = estimate(oriented, settings=settings)
                         draw = ImageDraw.Draw(small)
                         for line in lines:
                             draw.line(tuple(line['coords']), fill=(255,30,40), width=3)
@@ -48,12 +74,15 @@ def run_batch(source, destination, recursive=False, max_angle=10, progress=lambd
                         row = [str(relative),page+1,result['angle'],result['correction'],result['status'],
                                result['count'],result['spread'],result['reason'],f'previews/{preview_name}']
                         rows.append(dict(zip(FIELDS,row)))
-                        detail.append(dict(file=str(relative),page=page+1,**result,lines=lines))
+                        detail.append(dict(file=str(relative),page=page+1,**result,
+                                           settings=settings.as_dict(),lines=lines))
                         progress(f"  第 {page+1} 页: {result['angle']}° · {result['status']}")
                     except Exception as exc:
                         rows.append(dict(zip(FIELDS,[str(relative),page+1,None,None,'读取失败',0,None,str(exc),''])))
+                        detail.append(_failure_detail(relative, page+1, exc, settings))
         except Exception as exc:
             rows.append(dict(zip(FIELDS,[str(relative),None,None,None,'读取失败',0,None,str(exc),''])))
+            detail.append(_failure_detail(relative, None, exc, settings))
     with (destination/'angles.csv').open('w',encoding='utf-8-sig',newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=FIELDS)
         writer.writeheader()
