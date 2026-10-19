@@ -22,9 +22,9 @@ def _failure_detail(relative, page, error, settings):
                 error=str(error))
 
 
-def run_batch(source, destination, recursive=False, max_angle=10,
-              progress=lambda s: None, *, min_line_percent=18.0,
-              min_line_pixels=45.0, analysis_size=2400, resample='lanczos',
+def run_batch(source, destination, recursive=False, max_angle=15,
+              progress=lambda s: None, *, min_line_percent=10.0,
+              min_line_pixels=50.0, analysis_size=2400, resample='lanczos',
               settings=None):
     """Process every supported image and write CSV, JSON and previews.
 

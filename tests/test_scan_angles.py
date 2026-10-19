@@ -112,7 +112,7 @@ class EstimateTests(unittest.TestCase):
         self.assertAlmostEqual(result['angle'], angle, delta=.2)
         self.assertAlmostEqual(result['correction'], -angle, delta=.2)
         # 5 px dash gaps are within the 8 px documented tolerance for this
-        # image size, but each 100 px dash is below the 288 px threshold.
+        # image size, but each 100 px dash is below the 160 px threshold.
         self.assertGreater(result['merge']['gap_tolerance_px'], 5)
         self.assertGreater(result['threshold_px'], 100)
         self.assertGreater(result['merge']['fragments'],
@@ -132,7 +132,7 @@ class EstimateTests(unittest.TestCase):
         self.assertIsNotNone(result['angle'])
         self.assertEqual(result['count'], len(lines))
         self.assertGreater(result['count'], 0)
-        # The 80 px dashes are below the 18% / 45 px threshold on their own,
+        # The 80 px dashes are below the 10% / 50 px threshold on their own,
         # but their merged support length is not.
         self.assertLess(80, result['threshold_px'])
         self.assertGreater(result['merge']['merged'], 0)

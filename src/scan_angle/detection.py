@@ -80,9 +80,9 @@ class DetectionSettings:
     is the larger of the two (see :func:`effective_min_line_pixels`).
     """
 
-    max_angle: float = 10.0
-    min_line_percent: float = 18.0
-    min_line_pixels: float = 45.0
+    max_angle: float = 15.0
+    min_line_percent: float = 10.0
+    min_line_pixels: float = 50.0
     analysis_size: int = 2400
     resample: str = 'lanczos'
 
@@ -390,8 +390,8 @@ def _touches_frame(fragment, height, width):
             min(y1, y2) > height - _FRAME_MARGIN_PX - 1)
 
 
-def estimate(image, max_angle=10.0, analysis_size=2400, *, min_line_percent=18.0,
-             min_line_pixels=45.0, resample='lanczos', settings=None):
+def estimate(image, max_angle=15.0, analysis_size=2400, *, min_line_percent=10.0,
+             min_line_pixels=50.0, resample='lanczos', settings=None):
     """Return estimate plus evidence lines on an EXIF-normalized thumbnail.
 
     The length filter is applied to merged lines, so individually short

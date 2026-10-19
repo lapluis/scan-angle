@@ -210,7 +210,7 @@ class MergeTests(unittest.TestCase):
         self.assertAlmostEqual(line['span_length'], 265, delta=0.01)
 
         threshold = effective_min_line_pixels(DetectionSettings(), 600, 600)
-        self.assertEqual(threshold, 108)
+        self.assertEqual(threshold, 60)
         self.assertTrue(all(40 < threshold for _ in segments))
         self.assertGreaterEqual(line['support_length'], threshold)
 
@@ -225,9 +225,9 @@ class SettingsValidationTests(unittest.TestCase):
     def test_defaults(self):
         settings = DetectionSettings()
         self.assertEqual(settings.as_dict(), {
-            'max_angle': 10.0,
-            'min_line_percent': 18.0,
-            'min_line_pixels': 45.0,
+            'max_angle': 15.0,
+            'min_line_percent': 10.0,
+            'min_line_pixels': 50.0,
             'analysis_size': 2400,
             'resample': 'lanczos',
         })
