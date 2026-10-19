@@ -79,7 +79,7 @@ def gui(settings=None, *, recursive=False, output=None):
     ttk.Label(frame,text='正数＝顺时针；负数＝逆时针').pack(anchor='w',pady=(4,10))
     tree=ttk.Treeview(frame,columns=('file','page','angle','merged','state'),show='headings',height=9)
     for key,title,width in [('file','文件',280),('page','页',45),('angle','偏差角度（°）',120),
-                            ('merged','直线数（检测 / 合并 / 入选）',230),('state','状态',150)]:
+                            ('merged','检测 / 合并 / 入选',230),('state','状态',150)]:
         tree.heading(key,text=title);tree.column(key,width=width)
     tree.pack(fill='both',expand=True,pady=(7,0))
     status=tk.StringVar(value='')
