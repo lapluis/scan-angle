@@ -23,6 +23,7 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 walkdir = "2"
 dunce = "1"
+unicode-width = "0.2"
 eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
 rfd = { version = "0.15", optional = true }
 open = { version = "5", optional = true }

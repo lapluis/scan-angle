@@ -199,6 +199,7 @@ fn console_mode_writes_no_files() {
     let source = temp.path().join("input");
     fs::create_dir_all(&source).unwrap();
     fs::copy(fixture("angle_0.png"), source.join("angle.png")).unwrap();
+    fs::copy(fixture("blank.png"), source.join("blank.png")).unwrap();
     fs::write(source.join("broken.png"), b"broken").unwrap();
     let options = BatchOptions {
         source: source.clone(),
@@ -207,20 +208,11 @@ fn console_mode_writes_no_files() {
         settings: DetectionSettings::default(),
         allow_large_images: false,
     };
-    let mut logs = Vec::new();
-    let rows = batch::run_batch(&options, |p| {
-        if let Progress::Log(s) = p {
-            logs.push(s);
-        }
-    })
-    .unwrap();
-    assert_eq!(rows.len(), 2);
+    let rows = batch::run_batch(&options, |_| {}).unwrap();
+    assert_eq!(rows.len(), 3);
     assert!(rows.iter().all(|r| r.preview.is_empty()));
-    assert!(
-        logs.iter()
-            .any(|s| s.contains("偏差") && s.contains("可信"))
-    );
-    assert!(logs.iter().any(|s| s.contains("读取失败 · ")));
+    assert!(rows.iter().any(|r| r.status == "需人工确认"));
+    assert!(rows.iter().any(|r| r.status == "读取失败"));
     let entries: Vec<_> = fs::read_dir(temp.path())
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -322,6 +314,7 @@ fn executable_console_only_without_output() {
     let source = dir.path().join("input");
     fs::create_dir_all(&source).unwrap();
     fs::copy(fixture("angle_0.png"), source.join("angle.png")).unwrap();
+    fs::copy(fixture("blank.png"), source.join("blank.png")).unwrap();
     let run = Command::new(binary).arg(&source).output().unwrap();
     assert!(
         run.status.success(),
@@ -329,12 +322,21 @@ fn executable_console_only_without_output() {
         String::from_utf8_lossy(&run.stderr)
     );
     let stdout = String::from_utf8_lossy(&run.stdout);
-    assert!(stdout.contains("未指定 --output"), "{stdout}");
+    let header = stdout.lines().next().unwrap_or_default();
+    for column in ["文件", "页", "转正角度（°）", "检测 / 合并 / 入选", "状态"] {
+        assert!(header.contains(column), "{header}");
+    }
+    assert_eq!(stdout.matches("转正角度（°）").count(), 1, "{stdout}");
     assert!(stdout.contains("angle.png"), "{stdout}");
-    assert!(
-        stdout.contains("偏差") && stdout.contains("可信"),
-        "{stdout}"
-    );
+    assert!(stdout.contains("-0.000"), "{stdout}");
+    assert!(stdout.contains("0 / 0 / 0"), "{stdout}");
+    assert!(stdout.contains("需人工确认"), "{stdout}");
+    assert!(stdout.contains("可信"), "{stdout}");
+    assert!(!stdout.contains('\t'), "{stdout}");
+    assert!(!stdout.contains("偏差"), "{stdout}");
+    assert!(!stdout.contains("第 1 页"), "{stdout}");
+    assert!(!stdout.contains("未指定 --output"), "{stdout}");
+    assert!(!stdout.contains("没有足够的长直线"), "{stdout}");
     let entries: Vec<_> = fs::read_dir(dir.path())
         .unwrap()
         .map(|e| e.unwrap().path())

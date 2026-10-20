@@ -4,6 +4,7 @@ pub mod detection;
 #[cfg(feature = "gui")]
 pub mod gui;
 pub mod imaging;
+pub mod report;
 pub mod resample;
 
 #[cfg(windows)]

@@ -229,14 +229,6 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
             });
             let (row, detail) =
                 item.unwrap_or_else(|error| failure(&file, Some(page), error, &options.settings));
-            let log = match (row.angle, row.correction) {
-                (Some(angle), Some(correction)) => format!(
-                    "  第 {page} 页: 偏差 {angle:.3}° · 转正 {correction:.3}° · {} · 直线 {}",
-                    row.status, row.count
-                ),
-                _ => format!("  第 {page} 页: {} · {}", row.status, row.reason),
-            };
-            progress(Progress::Log(log));
             rows.push(row);
             if destination.is_some() {
                 details.push(detail);
@@ -244,7 +236,6 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
         });
         if let Err(error) = result {
             let (row, detail) = failure(&file, None, error, &options.settings);
-            progress(Progress::Log(format!("  读取失败 · {}", row.reason)));
             rows.push(row);
             if destination.is_some() {
                 details.push(detail);

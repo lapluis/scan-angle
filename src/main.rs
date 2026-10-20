@@ -4,10 +4,7 @@ use clap::CommandFactory;
 use clap::Parser;
 #[cfg(feature = "gui")]
 use scan_angle::gui;
-use scan_angle::{
-    batch::{Progress, run_batch},
-    cli::Cli,
-};
+use scan_angle::{batch::run_batch, cli::Cli, report};
 
 fn main() {
     // A double-click opens only the GUI; CLI invocations reuse their parent terminal.
@@ -23,14 +20,8 @@ fn main() {
     let settings = cli.settings().unwrap_or_else(|e| e.exit());
     let result = (|| -> anyhow::Result<()> {
         if let Some(options) = cli.batch_options(settings.clone())? {
-            if options.destination.is_none() {
-                println!("未指定 --output，结果仅输出到终端，不写入文件。");
-            }
-            run_batch(&options, |p| {
-                if let Progress::Log(s) = p {
-                    println!("{s}")
-                }
-            })?;
+            let rows = run_batch(&options, |_| {})?;
+            println!("{}", report::format_table(&rows));
         } else {
             #[cfg(feature = "gui")]
             gui::run(cli, settings)?;
