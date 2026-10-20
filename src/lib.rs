@@ -3,6 +3,7 @@ pub mod cli;
 pub mod detection;
 #[cfg(feature = "gui")]
 pub mod gui;
+pub mod i18n;
 pub mod imaging;
 pub mod report;
 pub mod resample;
