@@ -1,4 +1,4 @@
-# scan-angle
+# scan-angle Rust 版
 
 扫描图片偏角批量检测工具。根据纸张边缘、边框或其他长直线估算倾斜角度，输出 CSV 和红色标线预览。所有处理在本地进行，原图不会被修改。
 
@@ -6,7 +6,7 @@
 
 - 窗口界面与命令行两种入口。
 - 支持 TIFF（含多页）、PNG、JPEG、BMP、WebP。
-- 支持遍历子文件夹，损坏图片记录失败后继续处理。
+- 支持遍历子文件夹，损坏图片记录失败后继续处理。目录列表无法读取时整批报错，避免将不完整扫描标记为完成。
 - 窗口进度条按已处理文件数推进，显示“已处理 / 总数”；多页 TIFF 按一个文件计，读取失败文件也计入已处理数。
 - 每页输出偏差角、建议转正角、证据一致性状态和标线预览。
 - 默认检测 ±15°，可调整到 ±30°。
@@ -16,47 +16,26 @@
 
 ## 开发运行
 
-项目使用 uv 管理环境、依赖及锁文件，Python 版本固定为 3.14 系列（`.python-version` 和 `requires-python`）。先安装 uv。窗口界面需要 tkinter。
-
-主要代码按职责拆分在 `src/scan_angle/`：
-
-| 模块 | 职责 |
-| --- | --- |
-| `detection.py` | 设置校验、直线合并、长直线检测与偏角估算 |
-| `batch.py` | 文件夹批处理、CSV/JSON/预览输出及字段常量 |
-| `gui.py` | tkinter 窗口界面（tkinter 仅在此模块内导入） |
-| `cli.py` | 命令行参数解析与 GUI／批处理调度 |
-| `app.py` | 兼容旧导入的再导出层，不含实现 |
-
-根目录 `main.py` 只保留入口导入和 `__main__` 调用，是统一运行和打包入口。`uv sync` 会将 src 包以可编辑方式安装到项目 `.venv`。
-
-`uv.lock` 纳入版本控制；日常安装和 CI 使用 `--locked`，修改依赖后运行 `uv lock` 更新锁文件。
+本分支仅保留 Rust 实现；原 Python 版保留在 main 分支。运行时不需要 Python、uv 或 OpenCV。安装 Rust stable（最低 1.88）和 Windows MSVC C++ 构建工具，然后运行：
 
 ```powershell
-uv python install 3.14
-uv sync --locked
-uv run --locked main.py
+cargo run --locked --release
+cargo run --locked --release -- "D:\workspace\images" --output ".\results\images"
 ```
 
-命令行批处理：
+不带输入文件夹时打开窗口，所有命令行设置会初始化对应控件：
 
 ```powershell
-uv run --locked main.py "D:\workspace\LACA-15637" --output ".\results\LACA-15637"
+cargo run --locked --release -- --min-line-percent 25 --analysis-size 1600 --resample bilinear
 ```
 
-添加 `--recursive` 可包含子目录。统一使用根目录 `main.py` 入口。对超过 Pillow 默认像素保护上限的可信扫描图，可显式添加 `--allow-large-images`。
-
-五个合并容差可在同一条命令中调整，例如：
+添加 `--recursive` 可包含子目录；默认输出到输入目录旁的 `<目录名>_角度结果`。超过 178,956,970 像素的可信本地图片须显式添加 `--allow-large-images`，窗口也提供对应选项。
 
 ```powershell
-uv run --locked main.py "D:\workspace\LACA-15637" --merge-angle 1.2 --merge-distance-percent 0.2 --merge-distance-pixels 2 --merge-gap-percent 1 --merge-gap-pixels 8
+cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-distance-percent 0.2 --merge-distance-pixels 2 --merge-gap-percent 1 --merge-gap-pixels 8
 ```
 
-不带输入文件夹启动时，命令行中的设置（包括 `--recursive` 和 `--output`）会初始化窗口界面中的对应控件，而不会被丢弃：
-
-```powershell
-uv run --locked main.py --min-line-percent 25 --analysis-size 1600 --resample bilinear
-```
+主要模块：`detection.rs` 实现设置、几何合并和角度共识；`imaging.rs` / `resample.rs` 负责图片和六种缩放滤镜；`batch.rs` 写报告和预览；`cli.rs` / `gui.rs` 提供命令行和窗口入口。`Cargo.lock` 纳入版本控制，构建和测试均使用 `--locked`。
 
 ## 检测设置
 
@@ -127,11 +106,11 @@ uv run --locked main.py --min-line-percent 25 --analysis-size 1600 --resample bi
 
 “可信”表示多条分离直线的方向较一致，是启发式判断，并非概率或测量精度保证。“需人工确认”可包含参考角度；角度空白表示没有足够证据。角度输出三位小数便于比较，并不意味着实际精度达到千分之一度。
 
-每次运行会覆盖所选输出目录中的 CSV、JSON 和同名预览。建议不同批次使用独立输出目录。
+每次运行会覆盖所选输出目录中的 CSV、JSON 和同名预览。建议不同批次使用独立输出目录。输出目录不能与输入目录相同，也不能是输入目录的上级目录；输入目录内的输出子目录会自动排除。
 
 ## 直线合并
 
-处理顺序是：EXIF 方向归一化 → 缩放为分析图 → OpenCV LSD 提取线段 → 排除贴近图像边框的线段和超出最大偏角的线段 → **合并共线片段** → 按方向相关的有效最短长度筛选 → 角度共识。
+处理顺序是：EXIF 方向归一化 → 缩放为分析图 → Rust LSD 提取线段 → 排除贴近图像边框的线段和超出最大偏角的线段 → **合并共线片段** → 按方向相关的有效最短长度筛选 → 角度共识。
 
 合并规则：
 
@@ -158,7 +137,7 @@ uv run --locked main.py --min-line-percent 25 --analysis-size 1600 --resample bi
 
 ## 方法和限制
 
-图片先按 EXIF 方向归一化，再按所选算法缩小为最长边不超过分析图设置的分析图（不放大）。使用 OpenCV 直线段检测器提取线段；排除图像边框后，按水平和竖直方向分别合并共线片段，再按方向相关的最短长度和最大偏角筛选。最后按支撑长度加权寻找一致角度簇并计算加权中位数，结合空间上分离的直线数量、角度离散和竞争方向标记结果状态。
+图片先按 EXIF 方向归一化，再按所选算法缩小为最长边不超过分析图设置的分析图（不放大）。使用 纯 Rust lsdetect 直线段检测器提取线段；排除图像边框后，按水平和竖直方向分别合并共线片段，再按方向相关的最短长度和最大偏角筛选。最后按支撑长度加权寻找一致角度簇并计算加权中位数，结合空间上分离的直线数量、角度离散和竞争方向标记结果状态。
 
 适合纸边、边框、表格线较清楚的扫描图。圆形光盘、无直线插画、浅色边缘、弯曲或透视变形可能无法可靠判断。画面内容中的设计斜线也可能影响结果，应核对预览。
 
@@ -174,25 +153,19 @@ uv run --locked main.py --min-line-percent 25 --analysis-size 1600 --resample bi
 ## 测试
 
 ```powershell
-uv run --locked python -m unittest discover -s tests -v
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
 ```
 
-自动测试覆盖已知旋转角、空白/圆形图拒判、多页 TIFF、损坏文件、递归时排除输出目录及 EXIF 方向处理；CLI 的 GUI／批处理调度、全部设置（含五个合并设置）转发、无文件夹时 GUI 初始化和非法数值拒绝；共线、反向、重叠片段合并，平行／垂直／交叉直线不合并，链条漂移拆分，支撑长度去重，短片段合并后达到阈值，以及宽／高矩形图上水平／竖直方向各自的阈值、实际分析尺寸、50 像素下限和边界包含／排除；全部缩放算法、尺寸与不放大行为；五个合并设置各自的取值效果、百分比与像素下限在缩放后实际短边上的计算、默认值保持既有结果、零距离／零间隙的精确共线与相接／重叠语义、非法负数／NaN／无穷大／角度边界，以及批处理设置、逐图有效合并容差、JSON 诊断和失败记录。测试不启动真实 GUI，也不访问网络。
+回归样本来自原 Python 版的合成测试：120 组合并基准、24 组检测管线基准、11 张已知角度／断线／空白／圆形图，以及 30 个格式与 EXIF 样本。合并与检测管线逐字段对照；独立 LSD 实现允许细微线段差异，合成图角度误差须在原测试的 0.12° 内，分类须一致。测试还覆盖全部参数、GUI 初始化、非法输入、递归输出排除、逐文件进度、逐页失败记录、CSV BOM 和 JSON 结构。测试仅使用合成图片，不访问用户扫描文件或网络。
 
-初始化前曾使用本机 `D:\workspace\LACA-15637` 的 8 张 TIFF 验证：5 张标记可信、2 张需复核、光盘图未输出角度；对其中 3 张增加 2° 顺时针旋转，检测增量误差不超过 0.014°。该记录属于本机样例验证，原图没有人工角度真值，不能据此承诺绝对精度。原始扫描图及其衍生预览未纳入仓库。
+算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 `docs/rust-migration.md`。如需原 Python 版，请使用 main 分支。
 
 ## Windows 打包
 
-`uv sync --locked` 默认包含打包所需的 dev 依赖组，然后执行：
-
 ```powershell
-.\scripts\build-windows.ps1
+.\scripts\build-rust-windows.ps1
 ```
 
-生成 `dist/ScanAngle.exe`，可在 Windows 64 位系统双击运行，无需单独安装 Python。EXE 是窗口程序，通过命令行启动时不显示终端进度，可查看结果文件。构建产物不纳入 Git。
-
-GitHub Actions 使用 uv、锁文件及 Python 3.14，在 Windows 上执行测试和入口检查。
-
-## Rust 并行实现
-
-`codex/rust-port` 分支新增 Rust 版本，保留本 Python 版全部源码与入口，不改变上述 Python 运行及打包方式。Rust 的运行、测试和独立打包步骤见 [docs/rust-port.md](docs/rust-port.md)。Rust 可执行文件为 `dist/ScanAngle-Rust.exe`，不会覆盖 Python 版 `dist/ScanAngle.exe`。
+脚本先执行格式检查、Clippy 和全部测试，再构建并生成 `dist/ScanAngle-Rust.exe`。双击打开窗口，带输入目录则批处理。构建产物不纳入 Git。GitHub Actions 在 Windows 上运行同样的 Rust 检查并保存可执行文件 artifact。
