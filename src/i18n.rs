@@ -339,6 +339,7 @@ impl I18n {
     /// supplied language file is strict: any invalid catalog returns an error.
     pub fn load(selected: &str, options: &LoadOptions) -> I18nResult<Self> {
         validate_locale(selected)?;
+        let selected = normalize_locale(selected);
         let builtins = load_builtins()?;
         let canonical = canonical_placeholders(&builtins);
         let mut warnings = Vec::new();
@@ -350,7 +351,7 @@ impl I18n {
             }
         }
         if let Some(path) = &options.language_file {
-            let catalog = load_explicit(path, selected, &canonical, &mut warnings)?;
+            let catalog = load_explicit(path, &selected, &canonical, &mut warnings)?;
             external.insert(catalog.locale.clone(), catalog);
         }
         Ok(Self {
@@ -379,7 +380,7 @@ impl I18n {
     pub fn select(&self, locale: &str) -> I18nResult<Self> {
         validate_locale(locale)?;
         let mut selected = self.clone();
-        selected.selected = locale.to_string();
+        selected.selected = normalize_locale(locale);
         Ok(selected)
     }
 
@@ -403,7 +404,8 @@ impl I18n {
 
     /// Whether a catalog exists for `locale` (built-in or discovered).
     pub fn has_locale(&self, locale: &str) -> bool {
-        self.builtins.contains_key(locale) || self.external.contains_key(locale)
+        let locale = normalize_locale(locale);
+        self.builtins.contains_key(&locale) || self.external.contains_key(&locale)
     }
 
     /// Built-in and valid external languages, sorted by identifier.
@@ -728,6 +730,7 @@ struct RawCatalog {
     fallback: Option<String>,
     messages: BTreeMap<String, String>,
     unknown_top_level: Vec<String>,
+    invalid_values: Vec<(String, &'static str)>,
 }
 
 fn parse_template(input: &str) -> std::result::Result<Template, TemplateError> {
@@ -799,6 +802,29 @@ fn is_placeholder_name(name: &str) -> bool {
         _ => return false,
     }
     characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn normalize_locale(locale: &str) -> String {
+    locale
+        .split('-')
+        .enumerate()
+        .map(|(index, part)| {
+            if index == 0 {
+                part.to_ascii_lowercase()
+            } else if part.len() == 2 && part.bytes().all(|b| b.is_ascii_alphabetic()) {
+                part.to_ascii_uppercase()
+            } else if part.len() == 4 && part.bytes().all(|b| b.is_ascii_alphabetic()) {
+                format!(
+                    "{}{}",
+                    part[..1].to_ascii_uppercase(),
+                    part[1..].to_ascii_lowercase()
+                )
+            } else {
+                part.to_ascii_lowercase()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 fn is_valid_locale(locale: &str) -> bool {
@@ -881,7 +907,7 @@ fn parse_document(text: &str) -> std::result::Result<RawCatalog, RawError> {
             if !is_valid_locale(fallback) {
                 return Err(RawError::FallbackInvalid(fallback.to_string()));
             }
-            Some(fallback.to_string())
+            Some(normalize_locale(fallback))
         }
     };
 
@@ -891,12 +917,11 @@ fn parse_document(text: &str) -> std::result::Result<RawCatalog, RawError> {
         .as_table()
         .ok_or(RawError::MessagesNotTable)?;
     let mut messages = BTreeMap::new();
+    let mut invalid_values = Vec::new();
     for (key, value) in messages_table.iter() {
         let Some(message) = value.as_str() else {
-            return Err(RawError::ValueType {
-                key: key.clone(),
-                kind: value_kind(value),
-            });
+            invalid_values.push((key.clone(), value_kind(value)));
+            continue;
         };
         messages.insert(key.clone(), message.to_string());
     }
@@ -909,11 +934,12 @@ fn parse_document(text: &str) -> std::result::Result<RawCatalog, RawError> {
     unknown_top_level.sort();
 
     Ok(RawCatalog {
-        locale: locale.to_string(),
+        locale: normalize_locale(locale),
         name: name.to_string(),
         fallback,
         messages,
         unknown_top_level,
+        invalid_values,
     })
 }
 
@@ -926,6 +952,23 @@ fn parse_catalog(
     warnings: &mut Vec<Warning>,
 ) -> std::result::Result<Catalog, CatalogError> {
     let raw = parse_document(text).map_err(CatalogError::Raw)?;
+    for (key, kind) in &raw.invalid_values {
+        if mode == LoadMode::Discovered {
+            push_warning(
+                warnings,
+                WarningKind::ValueType,
+                path,
+                Some(&raw.locale),
+                "i18n.warning.value_type",
+                &[("path", &path_text(path)), ("key", key), ("kind", kind)],
+            );
+        } else {
+            return Err(CatalogError::Raw(RawError::ValueType {
+                key: key.clone(),
+                kind,
+            }));
+        }
+    }
 
     for key in raw.unknown_top_level {
         match mode {
@@ -944,7 +987,7 @@ fn parse_catalog(
     }
 
     if let Some(expected) = expected_locale
-        && raw.locale != expected
+        && raw.locale != normalize_locale(expected)
     {
         return Err(CatalogError::LocaleMismatch {
             declared: raw.locale,
@@ -1348,7 +1391,7 @@ fn declared_locale(text: &str) -> std::result::Result<String, String> {
     if !is_valid_locale(locale) {
         return Err(format!("invalid locale identifier `{locale}`"));
     }
-    Ok(locale.to_string())
+    Ok(normalize_locale(locale))
 }
 
 fn unreadable_file(path: &Path, error: impl fmt::Display) -> LocalizedMessage {
@@ -2000,5 +2043,32 @@ mod tests {
         assert!(text.contains("native decoder detail"), "{text}");
         assert!(nested.to_string().contains("无法识别的图片格式"));
         assert!(!nested.to_string().contains("native decoder detail")); // legacy error Display
+    }
+    #[test]
+    fn discovered_bad_value_preserves_other_entries_and_locale_case_is_normalized() {
+        let dir = TempDir::new().unwrap();
+        let text = catalog(
+            "EN-us",
+            "English override",
+            None,
+            "\"gui.heading\" = 3\n\"status.trusted\" = \"Custom trusted\"",
+        );
+        write_locales(&dir, &[("en-US.toml", &text)]);
+        let service = discover_at(&dir, "EN-US");
+        assert_eq!(service.selected_locale(), "en-US");
+        assert_eq!(service.translate("status.trusted"), "Custom trusted");
+        assert_eq!(
+            service.translate("gui.heading"),
+            I18n::with_locale("en-US").unwrap().translate("gui.heading")
+        );
+        assert!(
+            service
+                .warnings()
+                .iter()
+                .any(|w| w.kind() == WarningKind::ValueType)
+        );
+        assert!(service.has_locale("en-us"));
+        assert_eq!(service.select("zh-cn").unwrap().selected_locale(), "zh-CN");
+        assert!(I18n::from_language_file(dir.path().join("en-US.toml")).is_err());
     }
 }

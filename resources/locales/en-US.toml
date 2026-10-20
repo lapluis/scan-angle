@@ -208,3 +208,15 @@ name = "English"
 "preferences.error.write" = "Unable to save language preference {path}: {error}"
 
 "preferences.error.location" = "Unable to determine the language preference directory"
+
+"cli.error.unexpected_value" = "Unexpected value for {argument}: {value}"
+
+"cli.default" = "Default: {value}"
+
+"cli.suggestion" = "Did you mean {value}?"
+
+"cli.valid_values" = "Valid values: {value}"
+
+"settings.error.label_range" = "{label} must be between {min} and {max}"
+
+"settings.error.label_choice" = "{label} must be one of {choices}"

@@ -209,3 +209,15 @@ fallback = "en-US"
 "preferences.error.write" = "无法保存语言偏好 {path}：{error}"
 
 "preferences.error.location" = "无法确定语言偏好的保存目录"
+
+"cli.error.unexpected_value" = "参数 {argument} 不接受值：{value}"
+
+"cli.default" = "默认值：{value}"
+
+"cli.suggestion" = "是否要使用 {value}？"
+
+"cli.valid_values" = "有效值：{value}"
+
+"settings.error.label_range" = "{label}必须在 {min}～{max} 之间"
+
+"settings.error.label_choice" = "{label}必须是 {choices}"

@@ -1,4 +1,4 @@
-use crate::i18n::{I18n, LoadOptions, LocalizedMessage};
+use crate::i18n::{DEFAULT_LOCALE, I18n, LoadOptions, LocalizedMessage};
 use crate::{batch::BatchOptions, detection::DetectionSettings};
 use clap::{CommandFactory, FromArgMatches, Parser};
 use std::ffi::OsString;
@@ -159,7 +159,7 @@ impl Cli {
         let selected = match (&locale, &file) {
             (Some(locale), _) => locale.clone(),
             (None, Some(path)) => I18n::from_language_file(path)?.selected_locale().to_owned(),
-            _ => "zh-CN".into(),
+            _ => DEFAULT_LOCALE.into(),
         };
         let mut options = LoadOptions::discovered();
         options.language_file = file;
@@ -206,7 +206,26 @@ impl Cli {
             };
             cmd = cmd.mut_arg(&id, |a| a.help_heading(i18n.translate(heading)));
             if id != "help" && id != "version" {
-                cmd = cmd.mut_arg(&id, |a| a.help(i18n.translate(&format!("cli.help.{id}"))));
+                let defaults = cmd
+                    .get_arguments()
+                    .find(|a| a.get_id() == &id)
+                    .unwrap()
+                    .get_default_values()
+                    .iter()
+                    .map(|v| v.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let mut help = i18n.translate(&format!("cli.help.{id}"));
+                if !defaults.is_empty() {
+                    help.push_str(". ");
+                    help.push_str(&i18n.translate_message(
+                        &LocalizedMessage::new("cli.default").with_param("value", defaults),
+                    ));
+                }
+                cmd = cmd.mut_arg(&id, |a| {
+                    let takes_values = a.get_action().takes_values();
+                    a.hide_default_value(takes_values).help(help)
+                });
             }
         }
         cmd
@@ -226,15 +245,15 @@ impl Cli {
         let key = match error.kind() {
             E::UnknownArgument => "cli.error.unknown_argument",
             E::MissingRequiredArgument => "cli.error.missing_required",
+            E::InvalidValue if get(C::InvalidValue).is_empty() => "cli.error.missing_value",
             E::InvalidValue | E::ValueValidation => "cli.error.invalid_value",
             E::ArgumentConflict => "cli.error.conflict",
-            E::TooFewValues | E::WrongNumberOfValues | E::TooManyValues => {
-                "cli.error.missing_value"
-            }
+            E::TooManyValues => "cli.error.unexpected_value",
+            E::TooFewValues | E::WrongNumberOfValues => "cli.error.missing_value",
             _ => "cli.error.invalid_arguments",
         };
         let custom = get(C::Custom);
-        let message = if !custom.is_empty() {
+        let mut message = if !custom.is_empty() {
             custom
         } else {
             i18n.translate_message(
@@ -244,6 +263,18 @@ impl Cli {
                     .with_param("other", get(C::PriorArg)),
             )
         };
+        for (kind, key) in [
+            (C::SuggestedArg, "cli.suggestion"),
+            (C::ValidValue, "cli.valid_values"),
+        ] {
+            let value = get(kind);
+            if !value.is_empty() {
+                message.push('\n');
+                message.push_str(
+                    &i18n.translate_message(&LocalizedMessage::new(key).with_param("value", value)),
+                );
+            }
+        }
         format!(
             "{}: {}\n\n{} {}\n\n{}\n",
             i18n.translate("app.error_prefix"),

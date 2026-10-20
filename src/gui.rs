@@ -84,7 +84,31 @@ impl Form {
             merge_gap_percent: n(7)?,
             merge_gap_pixels: n(8)?,
         };
-        settings.validate()?;
+        settings.validate().map_err(|error| {
+            let Some(message) = error.downcast_ref::<LocalizedMessage>() else {
+                return error;
+            };
+            let label = |name: &str| LocalizedMessage::new(format!("settings.label.{name}"));
+            let localized = match message.key() {
+                "settings.error.finite_range" => message
+                    .parameters()
+                    .get("name")
+                    .map(|name| message.clone().with_message_param("name", label(name))),
+                "settings.error.analysis_size_range" => Some(
+                    LocalizedMessage::new("settings.error.label_range")
+                        .with_message_param("label", label("analysis_size"))
+                        .with_param("min", 256)
+                        .with_param("max", 10000),
+                ),
+                "settings.error.resample_choice" => Some(
+                    LocalizedMessage::new("settings.error.label_choice")
+                        .with_message_param("label", label("resample"))
+                        .with_param("choices", RESAMPLES.join("/")),
+                ),
+                _ => None,
+            };
+            localized.map_or(error, anyhow::Error::new)
+        })?;
         if !(1. ..=30.).contains(&settings.max_angle) {
             return Err(LocalizedMessage::new("settings.error.max_angle_range").into());
         }
@@ -238,6 +262,21 @@ impl App {
             });
             let language = self.language.clone();
             let t = |key: &str| language.translate(key);
+            let browse_text_width = ui
+                .painter()
+                .layout_no_wrap(
+                    t("gui.button.browse"),
+                    egui::TextStyle::Button.resolve(ui.style()),
+                    ui.visuals().text_color(),
+                )
+                .size()
+                .x;
+            // Reserve the translated button, its padding, item spacing, and
+            // TextEdit's two four-point horizontal margins.
+            let browse_reserved = browse_text_width
+                + 2. * ui.spacing().button_padding.x
+                + ui.spacing().item_spacing.x
+                + 8.;
             egui::ScrollArea::vertical()
                 .id_salt("main_content")
                 .show(ui, |ui| {
@@ -247,8 +286,9 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.label(t("gui.label.input_folder"));
                             ui.add(
-                                egui::TextEdit::singleline(&mut self.form.source)
-                                    .desired_width((ui.available_width() - 65.).max(200.)),
+                                egui::TextEdit::singleline(&mut self.form.source).desired_width(
+                                    (ui.available_width() - browse_reserved).max(80.),
+                                ),
                             );
                             if ui.button(t("gui.button.browse")).clicked()
                                 && let Some(p) = rfd::FileDialog::new()
@@ -266,7 +306,9 @@ impl App {
                             ui.label(t("gui.label.output_folder"));
                             ui.add(
                                 egui::TextEdit::singleline(&mut self.form.destination)
-                                    .desired_width((ui.available_width() - 65.).max(200.)),
+                                    .desired_width(
+                                        (ui.available_width() - browse_reserved).max(80.),
+                                    ),
                             );
                             if ui.button(t("gui.button.browse")).clicked()
                                 && let Some(p) = rfd::FileDialog::new()
@@ -570,12 +612,22 @@ mod tests {
         assert!(form.options().is_err());
     }
     fn ui_text(app: &mut App, size: egui::Vec2) -> String {
-        fn texts(shape: &egui::Shape, result: &mut Vec<String>) {
+        fn texts(shape: &egui::Shape, result: &mut Vec<String>, width: f32) {
             match shape {
-                egui::Shape::Text(t) => result.push(t.galley.text().to_owned()),
+                egui::Shape::Text(t) => {
+                    if t.galley.text() == "Browse…" {
+                        assert!(
+                            t.pos.x + t.galley.size().x <= width,
+                            "Browse button clipped: {:?} at {:?}, width {width}",
+                            t.galley.size(),
+                            t.pos
+                        );
+                    }
+                    result.push(t.galley.text().to_owned());
+                }
                 egui::Shape::Vec(shapes) => {
                     for shape in shapes {
-                        texts(shape, result);
+                        texts(shape, result, width);
                     }
                 }
                 _ => {}
@@ -590,7 +642,7 @@ mod tests {
         let frame = ctx.run(input(), |ctx| app.render_ui(ctx));
         let mut result = Vec::new();
         for shape in frame.shapes {
-            texts(&shape.shape, &mut result);
+            texts(&shape.shape, &mut result, size.x);
         }
         result.join("\n")
     }
@@ -653,5 +705,22 @@ mod tests {
         // The English form can also be laid out at the supported minimum size.
         let small = ui_text(&mut app, egui::vec2(880., 660.));
         assert!(small.contains("Start detection"), "{small}");
+    }
+    #[test]
+    fn range_errors_use_translatable_gui_labels() {
+        let cli = Cli::try_parse_from(["scan-angle"]).unwrap();
+        let mut form = Form::new(&cli, &cli.settings().unwrap());
+        form.source = "input".into();
+        form.destination = "output".into();
+        let english = I18n::with_locale("en-US").unwrap();
+        form.numbers[1] = "200".into();
+        let text = english.render_anyhow(&form.options().unwrap_err());
+        assert!(text.contains("Min line"), "{text}");
+        assert!(!text.contains("min_line_percent"));
+        form.numbers[1] = "10".into();
+        form.numbers[3] = "10001".into();
+        let text = english.render_anyhow(&form.options().unwrap_err());
+        assert!(!text.contains("analysis_size"));
+        assert!(text.contains("256") && text.contains("10000"));
     }
 }

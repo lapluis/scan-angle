@@ -9,6 +9,7 @@ Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全
 - [功能](#功能)
 - [环境要求](#环境要求)
 - [快速开始](#快速开始)
+- [语言与外置语言包](#语言与外置语言包)
 - [命令行选项](#命令行选项)
 - [输出与结果](#输出与结果)
 - [直线合并](#直线合并)
@@ -100,6 +101,20 @@ broken.png     —              —           — / — / —  读取失败
 
 超过 178,956,970 像素的可信本地图片须显式添加 `--allow-large-images`，窗口也提供对应选项。
 
+## 语言与外置语言包
+
+程序编译时内嵌简体中文和英文，默认中文，无需附带语言文件。窗口顶部的语言下拉框可即时切换并记住选择；命令行可指定 `--lang en-US`，包括英文帮助和参数错误提示。
+
+```powershell
+scan-angle.exe --lang en-US --help
+scan-angle.exe "D:\images" --lang en-US
+scan-angle.exe "D:\images" --lang-file "D:\translations\fr-FR.toml"
+```
+
+在 EXE 旁的 `locales/` 目录放置 UTF-8 TOML 文件，可以覆盖内置文字或增加其他语言，例如 `locales/zh-CN.toml`、`locales/en-US.toml`、`locales/fr-FR.toml`。缺少条目自动回退，文件修改后重启生效。默认 CSV/JSON 格式与原有中文内容不随界面语言改变。
+
+语言文件格式、占位符、优先级及校验规则见[语言包说明](docs/localization.md)。
+
 ## 命令行选项
 
 | 参数 | 说明 |
@@ -109,6 +124,8 @@ broken.png     —              —           — / — / —  读取失败
 | `-r, --recursive` | 递归包含子目录。 |
 | `--allow-large-images` | 允许处理超过 178,956,970 像素的可信本地扫描图。 |
 | `--json` | 以 JSON 格式输出检测结果到 stdout，结构与 `details.json` 相同；需要同时提供 `FOLDER`。 |
+| `--lang <LOCALE>` | 本次运行的显示语言，例如 `zh-CN`、`en-US`。 |
+| `--lang-file <PATH>` | 显式加载外置 TOML 语言包；未指定 `--lang` 时选择文件声明的语言。 |
 | `-h, --help` | 显示帮助。 |
 | `-V, --version` | 显示版本。 |
 
@@ -250,6 +267,8 @@ broken.png     —              —           — / — / —  读取失败
 - `batch.rs`：批量遍历、逐页处理、CSV/JSON 报告和预览输出。
 - `report.rs`：命令行结果表格的列宽计算与对齐。
 - `cli.rs` / `gui.rs`：命令行和窗口入口。
+- `i18n.rs` / `resources/locales/`：TOML 语言资源、外置覆盖、回退与消息格式化。
+- `preferences.rs`：GUI 的用户语言偏好读写。
 - `main.rs`：GUI/批处理分发和命令行输出。
 - `multiframe.rs`：APNG 默认帧和 MPF JPEG 的元数据发现。
 - `wic.rs`：Windows 内置 TIFF 编解码回退。
