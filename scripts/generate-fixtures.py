@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[1] / "tests/fixtures")
     args = parser.parse_args()
     if PIL.__version__ != "12.3.0":
-        raise SystemExit("Install the pinned test generator dependency: python -m pip install -r scripts/fixture-requirements.txt")
+        raise SystemExit("Run with the pinned test environment: uv run --locked scripts/generate-fixtures.py")
     args.output.mkdir(parents=True, exist_ok=True)
     borders(args.output)
     formats(args.output / "formats")

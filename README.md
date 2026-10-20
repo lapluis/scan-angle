@@ -16,7 +16,7 @@
 
 ## 开发运行
 
-本分支仅保留 Rust 实现；原 Python 版保留在 main 分支。运行时不需要 Python、uv 或 OpenCV。安装 Rust stable（最低 1.88）和 Windows MSVC C++ 构建工具，然后运行：
+当前应用为 Rust 实现；旧 Python 版可从 Git 历史查看。运行时不需要 Python、uv 或 OpenCV。安装 Rust stable（最低 1.88）和 Windows MSVC C++ 构建工具，然后运行：
 
 ```powershell
 cargo run --locked --release
@@ -153,25 +153,24 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 ## 测试
 
 ```powershell
-python -m pip install -r scripts/fixture-requirements.txt
-python scripts/generate-fixtures.py
+uv run --locked scripts/generate-fixtures.py
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-测试准备使用 Python 3.14 和固定版本 Pillow 12.3.0；它们仅用于生成独立参考图片，不是 Rust 应用的运行或编译依赖。仓库只保存生成代码、JSON 基准和 SHA-256 清单，不保存二进制测试图片。生成器会核对全部 55 个文件的校验值，且不会重写基准。
+根目录的 `pyproject.toml`、`uv.lock` 和 `.python-version` 管理测试环境。安装 uv 后，上述 `uv run --locked` 会准备 Python 3.14 和固定版本 Pillow 12.3.0；它们仅用于生成独立参考图片，不是 Rust 应用的运行或编译依赖。仓库只保存生成代码、JSON 基准和 SHA-256 清单，不保存二进制测试图片。生成器会核对全部 55 个文件的校验值，且不会重写基准。
 
 回归样本来自原 Python 版的合成测试：120 组合并基准、24 组检测管线基准、11 张已知角度／断线／空白／圆形图，以及 30 个格式与 EXIF 样本。合并与检测管线逐字段对照；独立 LSD 实现允许细微线段差异，合成图角度误差须在原测试的 0.12° 内，分类须一致。测试还覆盖全部参数、GUI 初始化、非法输入、递归输出排除、逐文件进度、逐页失败记录、CSV BOM 和 JSON 结构。测试仅使用合成图片，不访问用户扫描文件或网络。
 
-算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 `docs/rust-migration.md`。如需原 Python 版，请使用 main 分支。
+算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 `docs/rust-migration.md`。如需原 Python 版，请查看迁移前的 Git 历史。
 
-## Windows 打包
+## Windows 构建
 
 ```powershell
-.\scripts\build-rust-windows.ps1
+cargo build --locked
+# Release 版本：
+cargo build --locked --release
 ```
 
-脚本先生成并验证测试图片，再执行格式检查、Clippy 和全部测试，最后构建并生成 `dist/ScanAngle-Rust.exe`。双击打开窗口，带输入目录则批处理。构建产物不纳入 Git。GitHub Actions 在 Windows 上运行同样的 Rust 检查并保存可执行文件 artifact。
-
-打包脚本默认调用 PATH 中的 `python`，也可用环境变量 `SCAN_ANGLE_FIXTURE_PYTHON` 指定已安装上述测试依赖的解释器。直接执行 `cargo build --locked --release` 不需要 Python。
+分别生成 `target/debug/scan-angle.exe` 和 `target/release/scan-angle.exe`。双击打开窗口，带输入目录则批处理。构建直接使用 Cargo，不需要 Python、uv 或额外编译脚本；运行测试前才需要生成测试图片。构建产物不纳入 Git。GitHub Actions 在 Windows 上执行测试和 Release 构建并保存可执行文件 artifact。

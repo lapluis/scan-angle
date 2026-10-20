@@ -11,7 +11,7 @@ fn fixture(name: &str) -> PathBuf {
         .join(name);
     assert!(
         path.exists(),
-        "Missing fixture {}. Run: python -m pip install -r scripts/fixture-requirements.txt && python scripts/generate-fixtures.py",
+        "Missing fixture {}. Run: uv run --locked scripts/generate-fixtures.py",
         path.display()
     );
     path

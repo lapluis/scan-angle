@@ -70,6 +70,11 @@ its own expected resize output. All 55 generated files match the previous corpus
 byte-for-byte on the supported Windows environment. image-sha256.json pins that corpus;
 the generator refuses mismatches and never rewrites the golden data.
 
-Binary fixtures are ignored by Git. CI and the packaging script generate them before
+Binary fixtures are ignored by Git. CI and the documented uv command generate them before
 testing. After deleting the tracked copies and regenerating from scratch, all 31 tests
 and Clippy passed. Existing Git history is retained; main is not modified.
+
+The test-only environment is now managed by root pyproject.toml, uv.lock and
+.python-version. Generate fixtures with `uv run --locked scripts/generate-fixtures.py`.
+Build the application directly with `cargo build --locked` (or add `--release`);
+the separate PowerShell build script and requirements file have been removed.
