@@ -192,3 +192,7 @@ uv run --locked python -m unittest discover -s tests -v
 生成 `dist/ScanAngle.exe`，可在 Windows 64 位系统双击运行，无需单独安装 Python。EXE 是窗口程序，通过命令行启动时不显示终端进度，可查看结果文件。构建产物不纳入 Git。
 
 GitHub Actions 使用 uv、锁文件及 Python 3.14，在 Windows 上执行测试和入口检查。
+
+## Rust 并行实现
+
+`codex/rust-port` 分支新增 Rust 版本，保留本 Python 版全部源码与入口，不改变上述 Python 运行及打包方式。Rust 的运行、测试和独立打包步骤见 [docs/rust-port.md](docs/rust-port.md)。Rust 可执行文件为 `dist/ScanAngle-Rust.exe`，不会覆盖 Python 版 `dist/ScanAngle.exe`。
