@@ -58,3 +58,18 @@ Ignored local Python environments/build artifacts are not deleted.
   error when a validated batch starts.
 - Windows WIC supplies TIFF fax/palette/other layout fallback. Those formats are not
   promised on other platforms; Windows is the supported packaged target.
+
+## Generated test corpus (2026-10-20)
+
+The 55 tracked binary fixture images are replaced by scripts/generate-fixtures.py.
+Python 3.14 / Pillow 12.3.0 is a test-only reference generator, not the removed Python
+application or a runtime dependency. Geometry, color quadrants, TIFF modes/compressions,
+EXIF orientations, animated frames, MPO and resize ramps are described as code.
+Pillow independently produces the six-filter reference images; Rust does not generate
+its own expected resize output. All 55 generated files match the previous corpus
+byte-for-byte on the supported Windows environment. image-sha256.json pins that corpus;
+the generator refuses mismatches and never rewrites the golden data.
+
+Binary fixtures are ignored by Git. CI and the packaging script generate them before
+testing. After deleting the tracked copies and regenerating from scratch, all 31 tests
+and Clippy passed. Existing Git history is retained; main is not modified.

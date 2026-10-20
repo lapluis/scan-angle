@@ -2,6 +2,9 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot
 try {
+    $fixturePython = if ($env:SCAN_ANGLE_FIXTURE_PYTHON) { $env:SCAN_ANGLE_FIXTURE_PYTHON } else { 'python' }
+    & $fixturePython scripts/generate-fixtures.py
+    if ($LASTEXITCODE -ne 0) { throw 'Fixture generation failed. Install scripts/fixture-requirements.txt with the selected Python interpreter.' }
     & cargo fmt --all -- --check
     if ($LASTEXITCODE -ne 0) { throw 'Formatting check failed.' }
     & cargo clippy --locked --all-targets -- -D warnings

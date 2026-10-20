@@ -6,9 +6,15 @@ use scan_angle::{
 use serde_json::Value;
 use std::{fs, path::PathBuf};
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
-        .join(name)
+        .join(name);
+    assert!(
+        path.exists(),
+        "Missing fixture {}. Run: python -m pip install -r scripts/fixture-requirements.txt && python scripts/generate-fixtures.py",
+        path.display()
+    );
+    path
 }
 fn assert_json_close(a: &Value, b: &Value, path: &str) {
     match (a, b) {
