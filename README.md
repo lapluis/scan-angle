@@ -14,7 +14,6 @@ Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全
 - [直线合并](#直线合并)
 - [方法和限制](#方法和限制)
 - [开发](#开发)
-- [相关文档](#相关文档)
 
 ## 功能
 
@@ -254,6 +253,7 @@ broken.png     —              —           — / — / —  读取失败
 - `main.rs`：GUI/批处理分发和命令行输出。
 - `multiframe.rs`：APNG 默认帧和 MPF JPEG 的元数据发现。
 - `wic.rs`：Windows 内置 TIFF 编解码回退。
+- `examples/detector_check.rs`：对 `images_golden.json` 的样本运行检测器，并打印角度/状态与期望值。
 - `Cargo.lock` 纳入版本控制，构建和测试均使用 `--locked`。
 
 ### 测试
@@ -269,7 +269,7 @@ cargo test --locked
 
 回归样本来自原 Python 版的合成测试：120 组合并基准、24 组检测管线基准、11 张已知角度／断线／空白／圆形图，以及 30 个格式与 EXIF 样本。合并与检测管线逐字段对照；独立 LSD 实现允许细微线段差异，合成图角度误差须在原测试的 0.12° 内，分类须一致。测试还覆盖全部参数、GUI 初始化、非法输入、递归输出排除、逐文件进度、逐页失败记录、CSV BOM 和 JSON 结构。测试仅使用合成图片，不访问用户扫描文件或网络。
 
-算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 [docs/rust-migration.md](docs/rust-migration.md)。
+算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。
 
 ### 无 GUI 构建
 
@@ -299,9 +299,3 @@ cargo build --locked --release
 ```
 
 分别生成 `target/debug/scan-angle.exe` 和 `target/release/scan-angle.exe`。双击打开窗口，带输入目录则批处理。构建产物不纳入 Git。GitHub Actions 在 Windows 上执行测试和 Release 构建并保存可执行文件 artifact。
-
-## 相关文档
-
-- [docs/rust-migration.md](docs/rust-migration.md)：Rust 迁移过程、验证记录和测试语料说明。
-- [docs/rust-port.md](docs/rust-port.md)：文档入口。
-- [examples/detector_check.rs](examples/detector_check.rs)：针对检测器线段输出的检查示例。
