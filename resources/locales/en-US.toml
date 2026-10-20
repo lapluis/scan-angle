@@ -68,16 +68,6 @@ name = "English"
 "report.header.counts" = "Detected / merged / selected"
 "report.header.status" = "Status"
 
-"batch.csv.file" = "File"
-"batch.csv.page" = "Page"
-"batch.csv.angle" = "Skew angle_deg_clockwise_positive"
-"batch.csv.correction" = "Correction angle_deg_clockwise_positive"
-"batch.csv.status" = "Status"
-"batch.csv.merged_count" = "Merged line count"
-"batch.csv.spread" = "Angle spread_deg"
-"batch.csv.reason" = "Details"
-"batch.csv.preview" = "Preview"
-"batch.output_suffix" = "_angle_results"
 "batch.error.input_missing" = "Input folder does not exist"
 "batch.error.output_same_as_input" = "Output folder must be different from the input folder"
 "batch.error.output_parent_of_input" = "Output folder cannot be a parent of the input folder"
@@ -152,3 +142,69 @@ name = "English"
 "i18n.error.invalid_file" = "Language file {path} is invalid: {detail}"
 "i18n.error.locale_mismatch" = "Language file {path} declares locale {declared}, but the selected locale is {selected}"
 "i18n.error.builtin_catalog" = "Built-in language catalog {locale} is invalid: {detail}"
+
+"i18n.error.unavailable_locale" = "No language pack is available for {locale}"
+
+"cli.usage" = "Usage:"
+
+"cli.arguments" = "Arguments"
+
+"cli.options" = "Options"
+
+"cli.help_hint" = "Use --help for more information."
+
+"cli.help.help" = "Print help"
+
+"cli.help.version" = "Print version"
+
+"cli.help.folder" = "Input image folder; omit to open the GUI"
+
+"cli.help.output" = "Output directory; omit for console results only"
+
+"cli.help.recursive" = "Include subfolders"
+
+"cli.help.lang" = "Display language, such as zh-CN or en-US"
+
+"cli.help.lang_file" = "External TOML language file"
+
+"cli.help.max_angle" = "Maximum skew angle (1–30°)"
+
+"cli.help.min_line_percent" = "Minimum line length as percentage of the corresponding side"
+
+"cli.help.min_line_pixels" = "Minimum line length in analysis pixels"
+
+"cli.help.analysis_size" = "Longest analysis-image side (256–10000 pixels; downscale only)"
+
+"cli.help.resample" = "Resampling filter"
+
+"cli.help.merge_angle" = "Merge angle tolerance in degrees"
+
+"cli.help.merge_distance_percent" = "Merge perpendicular-distance tolerance (% of short side)"
+
+"cli.help.merge_distance_pixels" = "Minimum merge perpendicular-distance tolerance in pixels"
+
+"cli.help.merge_gap_percent" = "Merge gap tolerance (% of short side)"
+
+"cli.help.merge_gap_pixels" = "Minimum merge gap tolerance in pixels"
+
+"cli.error.unknown_argument" = "Unknown argument: {argument}"
+
+"cli.error.missing_required" = "Missing required argument: {argument}"
+
+"cli.error.invalid_value" = "Invalid value for {argument}: {value}"
+
+"cli.error.conflict" = "Argument {argument} conflicts with {other}"
+
+"cli.error.missing_value" = "A value is required for {argument}"
+
+"cli.error.invalid_arguments" = "Invalid command-line arguments"
+
+"gui.label.language" = "Language"
+
+"gui.window.warnings" = "Language or settings notices"
+
+"preferences.error.read" = "Unable to read language preference {path}: {error}"
+
+"preferences.error.write" = "Unable to save language preference {path}: {error}"
+
+"preferences.error.location" = "Unable to determine the language preference directory"

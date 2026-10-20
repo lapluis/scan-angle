@@ -3,7 +3,11 @@ use crate::{
     cli::Cli,
     detection::{DetectionSettings, RESAMPLES},
 };
-use anyhow::{Result, bail};
+use crate::{
+    i18n::{I18n, LocalizedMessage},
+    preferences,
+};
+use anyhow::Result;
 use eframe::egui;
 use std::{
     path::PathBuf,
@@ -12,15 +16,15 @@ use std::{
 };
 
 const LABELS: [&str; 9] = [
-    "最大偏角 ±（°）",
-    "最短直线 ≥ 对应方向边长（%）",
-    "最短直线 ≥ 分析像素",
-    "分析图最长边（像素，仅缩小）",
-    "合并角度差 ≤（°）",
-    "垂直距离容差：短边（%）",
-    "垂直距离容差：至少（像素）",
-    "间隙容差：短边（%）",
-    "间隙容差：至少（像素）",
+    "settings.label.max_angle",
+    "settings.label.min_line_percent",
+    "settings.label.min_line_pixels",
+    "settings.label.analysis_size",
+    "settings.label.merge_angle",
+    "settings.label.merge_distance_percent",
+    "settings.label.merge_distance_pixels",
+    "settings.label.merge_gap_percent",
+    "settings.label.merge_gap_pixels",
 ];
 #[derive(Clone)]
 pub struct Form {
@@ -57,19 +61,22 @@ impl Form {
     }
     pub fn options(&self) -> Result<BatchOptions> {
         let n = |i: usize| -> Result<f64> {
-            self.numbers[i]
-                .trim()
-                .parse()
-                .map_err(|_| anyhow::anyhow!("{}必须是数值", LABELS[i]))
+            self.numbers[i].trim().parse().map_err(|_| {
+                anyhow::Error::new(
+                    LocalizedMessage::new("settings.error.number_required")
+                        .with_message_param("label", LocalizedMessage::new(LABELS[i])),
+                )
+            })
         };
         let settings = DetectionSettings {
             max_angle: n(0)?,
             min_line_percent: n(1)?,
             min_line_pixels: n(2)?,
-            analysis_size: self.numbers[3]
-                .trim()
-                .parse()
-                .map_err(|_| anyhow::anyhow!("分析图最长边必须是整数"))?,
+            analysis_size: self.numbers[3].trim().parse().map_err(|_| {
+                anyhow::Error::new(LocalizedMessage::new(
+                    "settings.error.analysis_size_integer",
+                ))
+            })?,
             resample: self.resample.clone(),
             merge_angle: n(4)?,
             merge_distance_percent: n(5)?,
@@ -79,10 +86,10 @@ impl Form {
         };
         settings.validate()?;
         if !(1. ..=30.).contains(&settings.max_angle) {
-            bail!("最大偏角必须在 1～30 之间");
+            return Err(LocalizedMessage::new("settings.error.max_angle_range").into());
         }
         if self.source.trim().is_empty() || self.destination.trim().is_empty() {
-            bail!("请选择输入和输出文件夹");
+            return Err(LocalizedMessage::new("settings.error.choose_folders").into());
         }
         Ok(BatchOptions {
             source: PathBuf::from(self.source.trim()),
@@ -103,8 +110,11 @@ struct App {
     rows: Vec<Row>,
     completed: usize,
     total: usize,
-    status: String,
-    error: Option<String>,
+    status: Option<LocalizedMessage>,
+    error: Option<anyhow::Error>,
+    language: I18n,
+    notices: Vec<LocalizedMessage>,
+    preference_path: Option<PathBuf>,
     confirm_close: bool,
     allow_close: bool,
 }
@@ -113,7 +123,7 @@ impl App {
         let options = match self.form.options() {
             Ok(o) => o,
             Err(e) => {
-                self.error = Some(e.to_string());
+                self.error = Some(e);
                 return;
             }
         };
@@ -123,7 +133,7 @@ impl App {
         self.rows.clear();
         self.completed = 0;
         self.total = 0;
-        self.status.clear();
+        self.status = None;
         let ctx = ctx.clone();
         std::thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -132,7 +142,11 @@ impl App {
                     ctx.request_repaint();
                 })
             }))
-            .unwrap_or_else(|_| Err(anyhow::anyhow!("检测线程异常退出")));
+            .unwrap_or_else(|_| {
+                Err(anyhow::Error::new(LocalizedMessage::new(
+                    "gui.error.thread_panicked",
+                )))
+            });
             let _ = tx.send(Message::Done(result));
             ctx.request_repaint();
         });
@@ -144,7 +158,7 @@ impl App {
             .map_or(Vec::new(), |r| r.try_iter().collect());
         for m in messages {
             match m {
-                Message::Progress(Progress::Log(s)) => self.status = s,
+                Message::Progress(Progress::Log(s)) => self.status = Some(s),
                 Message::Progress(Progress::Files(n, t)) => {
                     self.completed = n;
                     self.total = t;
@@ -154,17 +168,22 @@ impl App {
                     self.confirm_close = false;
                     match result {
                         Ok(rows) => {
-                            let good = rows.iter().filter(|r| r.status == "可信").count();
+                            let good = rows
+                                .iter()
+                                .filter(|r| r.status == crate::detection::Status::Trusted)
+                                .count();
                             let merged: usize = rows.iter().filter_map(|r| r.merged_count).sum();
-                            self.status = format!(
-                                "完成：{} 页；可信 {good} 页；合并直线共 {merged} 条；其余请核对。已保存 angles.csv 和预览图。",
-                                rows.len()
+                            self.status = Some(
+                                LocalizedMessage::new("gui.status.complete")
+                                    .with_param("pages", rows.len())
+                                    .with_param("trusted", good)
+                                    .with_param("merged", merged),
                             );
                             self.rows = rows;
                         }
                         Err(e) => {
-                            self.status = "检测失败".into();
-                            self.error = Some(format!("{e:#}"));
+                            self.status = Some(LocalizedMessage::new("gui.status.failed"));
+                            self.error = Some(e);
                         }
                     }
                 }
@@ -172,8 +191,8 @@ impl App {
         }
     }
 }
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl App {
+    fn render_ui(&mut self, ctx: &egui::Context) {
         self.poll();
         let running = self.receiver.is_some();
         if running {
@@ -184,151 +203,233 @@ impl eframe::App for App {
             self.confirm_close = true;
         }
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("扫图偏角检测");
-            ui.add_space(8.);
-            ui.add_enabled_ui(!running, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("输入文件夹");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.form.source)
-                            .desired_width((ui.available_width() - 65.).max(200.)),
-                    );
-                    if ui.button("浏览…").clicked()
-                        && let Some(p) = rfd::FileDialog::new()
-                            .set_title("选择扫描图片文件夹")
-                            .pick_folder()
-                    {
-                        self.form.source = p.to_string_lossy().into_owned();
-                        if let Ok(d) = batch::default_output(&p) {
-                            self.form.destination = d.to_string_lossy().into_owned();
+            ui.horizontal(|ui| {
+                ui.label(self.language.translate("gui.label.language"));
+                let mut selected = self.language.selected_locale().to_owned();
+                let languages = self.language.available_languages();
+                let name = languages
+                    .iter()
+                    .find(|l| l.id == selected)
+                    .map(|l| l.name.as_str())
+                    .unwrap_or(&selected);
+                egui::ComboBox::from_id_salt("language")
+                    .selected_text(name)
+                    .show_ui(ui, |ui| {
+                        for lang in &languages {
+                            ui.selectable_value(&mut selected, lang.id.clone(), &lang.name);
                         }
-                    }
-                });
-                ui.add_space(4.);
-                ui.horizontal(|ui| {
-                    ui.label("输出文件夹");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.form.destination)
-                            .desired_width((ui.available_width() - 65.).max(200.)),
-                    );
-                    if ui.button("浏览…").clicked()
-                        && let Some(p) = rfd::FileDialog::new()
-                            .set_title("选择结果保存文件夹")
-                            .pick_folder()
-                    {
-                        self.form.destination = p.to_string_lossy().into_owned();
-                    }
-                });
-                ui.add_space(8.);
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.form.recursive, "包含子文件夹");
-                    ui.checkbox(&mut self.form.allow_large, "允许超大图片");
-                });
-                egui::Grid::new("settings")
-                    .num_columns(4)
-                    .spacing([12., 5.])
-                    .show(ui, |ui| {
-                        for (i, label) in LABELS.iter().enumerate() {
-                            ui.label(*label);
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.form.numbers[i])
-                                    .desired_width(75.),
-                            );
-                            if i % 2 == 1 {
-                                ui.end_row();
-                            }
-                        }
-                        ui.label("缩放算法");
-                        egui::ComboBox::from_id_salt("resample")
-                            .selected_text(&self.form.resample)
-                            .show_ui(ui, |ui| {
-                                for name in RESAMPLES {
-                                    ui.selectable_value(&mut self.form.resample, name.into(), name);
-                                }
-                            });
-                        ui.end_row();
                     });
-            });
-            ui.add_space(8.);
-            ui.label("正数＝顺时针；负数＝逆时针。蓝线＝合并直线，红线＝入选证据。");
-            ui.separator();
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(!running, egui::Button::new("开始检测"))
-                    .clicked()
+                if selected != self.language.selected_locale()
+                    && let Ok(language) = self.language.select(&selected)
                 {
-                    self.start(ctx);
-                }
-                if ui.button("打开结果文件夹").clicked() {
-                    let path = PathBuf::from(self.form.destination.trim());
-                    if path.is_dir()
-                        && let Err(e) = open::that(path)
-                    {
-                        self.error = Some(e.to_string());
+                    self.language = language;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+                        self.language.translate("app.title"),
+                    ));
+                    if let Some(path) = &self.preference_path {
+                        if let Err(warning) = preferences::write(path, &selected) {
+                            self.notices.push(warning);
+                        }
+                    } else {
+                        self.notices
+                            .push(LocalizedMessage::new("preferences.error.location"));
                     }
                 }
             });
-            ui.horizontal(|ui| {
-                let fraction = self.completed as f32 / self.total.max(1) as f32;
-                ui.add(
-                    egui::ProgressBar::new(fraction)
-                        .desired_width((ui.available_width() - 150.).max(100.)),
-                );
-                ui.label(format!("{} / {} 文件", self.completed, self.total));
-            });
-            if !self.status.is_empty() {
-                ui.label(&self.status);
-            }
-            ui.separator();
-            egui::ScrollArea::both()
-                .auto_shrink([false, false])
+            let language = self.language.clone();
+            let t = |key: &str| language.translate(key);
+            egui::ScrollArea::vertical()
+                .id_salt("main_content")
                 .show(ui, |ui| {
-                    egui::Grid::new("results")
-                        .striped(true)
-                        .min_col_width(60.)
-                        .spacing([18., 6.])
-                        .show(ui, |ui| {
-                            for label in
-                                ["文件", "页", "偏差角度（°）", "检测 / 合并 / 入选", "状态"]
+                    ui.heading(t("gui.heading"));
+                    ui.add_space(8.);
+                    ui.add_enabled_ui(!running, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(t("gui.label.input_folder"));
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.form.source)
+                                    .desired_width((ui.available_width() - 65.).max(200.)),
+                            );
+                            if ui.button(t("gui.button.browse")).clicked()
+                                && let Some(p) = rfd::FileDialog::new()
+                                    .set_title(t("gui.dialog.choose_input_folder"))
+                                    .pick_folder()
                             {
-                                ui.strong(label);
+                                self.form.source = p.to_string_lossy().into_owned();
+                                if let Ok(d) = batch::default_output(&p) {
+                                    self.form.destination = d.to_string_lossy().into_owned();
+                                }
                             }
-                            ui.end_row();
-                            for r in &self.rows {
-                                ui.label(&r.file);
-                                ui.label(r.page.map_or("—".into(), |p| p.to_string()));
-                                ui.label(r.angle.map_or("—".into(), |a| format!("{a:+.3}")));
-                                ui.label(match (r.fragment_count, r.merged_count) {
-                                    (Some(f), Some(m)) => format!("{f} / {m} / {}", r.count),
-                                    _ => "— / — / —".into(),
-                                });
-                                ui.label(&r.status).on_hover_text(&r.reason);
+                        });
+                        ui.add_space(4.);
+                        ui.horizontal(|ui| {
+                            ui.label(t("gui.label.output_folder"));
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.form.destination)
+                                    .desired_width((ui.available_width() - 65.).max(200.)),
+                            );
+                            if ui.button(t("gui.button.browse")).clicked()
+                                && let Some(p) = rfd::FileDialog::new()
+                                    .set_title(t("gui.dialog.choose_output_folder"))
+                                    .pick_folder()
+                            {
+                                self.form.destination = p.to_string_lossy().into_owned();
+                            }
+                        });
+                        ui.add_space(8.);
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut self.form.recursive, t("gui.checkbox.recursive"));
+                            ui.checkbox(&mut self.form.allow_large, t("gui.checkbox.allow_large"));
+                        });
+                        egui::Grid::new("settings")
+                            .num_columns(2)
+                            .spacing([12., 5.])
+                            .show(ui, |ui| {
+                                for (i, label) in LABELS.iter().enumerate() {
+                                    ui.add(egui::Label::new(t(label)).wrap());
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut self.form.numbers[i])
+                                            .desired_width(75.),
+                                    );
+                                    ui.end_row();
+                                }
+                                ui.label(t("settings.label.resample"));
+                                egui::ComboBox::from_id_salt("resample")
+                                    .selected_text(&self.form.resample)
+                                    .show_ui(ui, |ui| {
+                                        for name in RESAMPLES {
+                                            ui.selectable_value(
+                                                &mut self.form.resample,
+                                                name.into(),
+                                                name,
+                                            );
+                                        }
+                                    });
                                 ui.end_row();
+                            });
+                    });
+                    ui.add_space(8.);
+                    ui.label(t("gui.hint.orientation"));
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(!running, egui::Button::new(t("gui.button.start")))
+                            .clicked()
+                        {
+                            self.start(ctx);
+                        }
+                        if ui.button(t("gui.button.open_output_folder")).clicked() {
+                            let path = PathBuf::from(self.form.destination.trim());
+                            if path.is_dir()
+                                && let Err(e) = open::that(path)
+                            {
+                                self.error = Some(anyhow::Error::new(e));
                             }
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        let fraction = self.completed as f32 / self.total.max(1) as f32;
+                        ui.add(
+                            egui::ProgressBar::new(fraction)
+                                .desired_width((ui.available_width() - 150.).max(100.)),
+                        );
+                        ui.label(
+                            language.translate_message(
+                                &LocalizedMessage::new("gui.progress.files")
+                                    .with_param("completed", self.completed)
+                                    .with_param("total", self.total),
+                            ),
+                        );
+                    });
+                    if let Some(status) = &self.status {
+                        ui.label(language.translate_message(status));
+                    }
+                    ui.separator();
+                    egui::ScrollArea::both()
+                        .max_height(280.)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            egui::Grid::new("results")
+                                .striped(true)
+                                .min_col_width(60.)
+                                .spacing([18., 6.])
+                                .show(ui, |ui| {
+                                    for label in [
+                                        "gui.results.file",
+                                        "gui.results.page",
+                                        "gui.results.angle_deviation",
+                                        "gui.results.counts",
+                                        "gui.results.status",
+                                    ] {
+                                        ui.strong(t(label));
+                                    }
+                                    ui.end_row();
+                                    for r in &self.rows {
+                                        ui.label(&r.file);
+                                        ui.label(r.page.map_or("—".into(), |p| p.to_string()));
+                                        ui.label(
+                                            r.angle.map_or("—".into(), |a| format!("{a:+.3}")),
+                                        );
+                                        ui.label(match (r.fragment_count, r.merged_count) {
+                                            (Some(f), Some(m)) => {
+                                                format!("{f} / {m} / {}", r.count)
+                                            }
+                                            _ => "— / — / —".into(),
+                                        });
+                                        ui.label(r.status.render(&language))
+                                            .on_hover_text(r.reason.render(&language));
+                                        ui.end_row();
+                                    }
+                                });
                         });
                 });
         });
-        if let Some(error) = self.error.clone() {
-            egui::Window::new("输入或处理错误")
+        let dialog_language = self.language.clone();
+        let t = |key: &str| dialog_language.translate(key);
+        if let Some(error) = self.error.as_ref().map(|e| self.language.render_anyhow(e)) {
+            egui::Window::new(t("gui.window.error"))
                 .collapsible(false)
                 .resizable(true)
                 .show(ctx, |ui| {
                     ui.label(error);
-                    if ui.button("确定").clicked() {
+                    if ui.button(t("gui.button.ok")).clicked() {
                         self.error = None;
                     }
                 });
         }
+        let notices: Vec<_> = self
+            .language
+            .warning_texts()
+            .into_iter()
+            .chain(
+                self.notices
+                    .iter()
+                    .map(|m| self.language.translate_message(m)),
+            )
+            .collect();
+        if !notices.is_empty() {
+            egui::Window::new(t("gui.window.warnings"))
+                .collapsible(true)
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(200.)
+                        .show(ui, |ui| {
+                            for notice in &notices {
+                                ui.label(notice);
+                            }
+                        });
+                });
+        }
         if self.confirm_close && running {
-            egui::Window::new("正在检测")
+            egui::Window::new(t("gui.window.running"))
                 .collapsible(false)
                 .show(ctx, |ui| {
-                    ui.label("退出会中断检测，当前批次可能没有完整 CSV。确定退出？");
+                    ui.label(t("gui.confirm.close_running"));
                     ui.horizontal(|ui| {
-                        if ui.button("继续检测").clicked() {
+                        if ui.button(t("gui.button.continue")).clicked() {
                             self.confirm_close = false;
                         }
-                        if ui.button("退出").clicked() {
+                        if ui.button(t("gui.button.exit")).clicked() {
                             self.allow_close = true;
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
@@ -337,7 +438,29 @@ impl eframe::App for App {
         }
     }
 }
+impl eframe::App for App {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.render_ui(ctx);
+    }
+}
 pub fn run(cli: Cli, settings: DetectionSettings) -> Result<()> {
+    run_localized(cli, settings, I18n::default())
+}
+pub fn run_localized(cli: Cli, settings: DetectionSettings, mut language: I18n) -> Result<()> {
+    let preference_path = preferences::path();
+    let mut notices = Vec::new();
+    if cli.lang.is_none()
+        && cli.lang_file.is_none()
+        && let Some(path) = &preference_path
+    {
+        match preferences::read(path) {
+            Ok(saved) => {
+                language = language.select_saved(saved.as_deref())?;
+            }
+            Err(warning) => notices.push(warning),
+        }
+    }
+    let title = language.translate("app.title");
     let form = Form::new(&cli, &settings);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -346,7 +469,7 @@ pub fn run(cli: Cli, settings: DetectionSettings) -> Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "扫图偏角检测",
+        &title,
         options,
         Box::new(move |cc| {
             let mut fonts = egui::FontDefinitions::default();
@@ -378,14 +501,21 @@ pub fn run(cli: Cli, settings: DetectionSettings) -> Result<()> {
                 rows: Vec::new(),
                 completed: 0,
                 total: 0,
-                status: String::new(),
+                status: None,
+                language,
+                notices,
+                preference_path,
                 error: None,
                 confirm_close: false,
                 allow_close: false,
             }))
         }),
     )
-    .map_err(|e| anyhow::anyhow!("无法打开窗口：{e}"))
+    .map_err(|e| {
+        LocalizedMessage::new("gui.error.open_window")
+            .with_param("error", e)
+            .into()
+    })
 }
 #[cfg(test)]
 mod tests {
@@ -402,7 +532,10 @@ mod tests {
                 rows: Vec::new(),
                 completed: 0,
                 total: 0,
-                status: String::new(),
+                status: None,
+                language: I18n::default(),
+                notices: Vec::new(),
+                preference_path: None,
                 error: None,
                 confirm_close: true,
                 allow_close: false,
@@ -435,5 +568,90 @@ mod tests {
         assert_eq!(form.options().unwrap().settings.max_angle, 20.);
         form.numbers[3] = "400.5".into();
         assert!(form.options().is_err());
+    }
+    fn ui_text(app: &mut App, size: egui::Vec2) -> String {
+        fn texts(shape: &egui::Shape, result: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(t) => result.push(t.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        texts(shape, result);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let ctx = egui::Context::default();
+        let input = || egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        };
+        let _ = ctx.run(input(), |ctx| app.render_ui(ctx));
+        let frame = ctx.run(input(), |ctx| app.render_ui(ctx));
+        let mut result = Vec::new();
+        for shape in frame.shapes {
+            texts(&shape.shape, &mut result);
+        }
+        result.join("\n")
+    }
+
+    #[test]
+    fn completed_rows_summary_and_errors_rerender_after_language_change() {
+        use crate::{
+            batch::RowReason,
+            detection::{DetectionReason, Status},
+        };
+        let cli = Cli::try_parse_from(["scan-angle"]).unwrap();
+        let mut app = App {
+            form: Form::new(&cli, &cli.settings().unwrap()),
+            receiver: None,
+            rows: vec![Row {
+                file: "sample.png".into(),
+                page: Some(1),
+                angle: Some(1.),
+                correction: Some(-1.),
+                status: Status::Trusted,
+                count: 2,
+                spread: None,
+                reason: RowReason::Detection(DetectionReason::Consistent),
+                preview: String::new(),
+                fragment_count: Some(3),
+                merged_count: Some(2),
+            }],
+            completed: 1,
+            total: 1,
+            status: Some(
+                LocalizedMessage::new("gui.status.complete")
+                    .with_param("pages", 1)
+                    .with_param("trusted", 1)
+                    .with_param("merged", 2),
+            ),
+            language: I18n::default(),
+            notices: Vec::new(),
+            preference_path: None,
+            error: Some(
+                LocalizedMessage::new("settings.error.number_required")
+                    .with_message_param("label", LocalizedMessage::new("settings.label.max_angle"))
+                    .into(),
+            ),
+            confirm_close: false,
+            allow_close: false,
+        };
+        let chinese = ui_text(&mut app, egui::vec2(1000., 1000.));
+        assert!(chinese.contains("完成：1 页"), "{chinese}");
+        assert!(chinese.contains("可信"), "{chinese}");
+        app.language = app.language.select("en-US").unwrap();
+        let english = ui_text(&mut app, egui::vec2(1000., 1000.));
+        assert!(english.contains("Done: 1 pages"), "{english}");
+        assert!(english.contains("Trusted"), "{english}");
+        assert!(
+            english.contains("Max skew ± (°) must be a number"),
+            "{english}"
+        );
+        assert!(!english.contains("完成："));
+        assert_eq!(app.rows[0].status, Status::Trusted);
+        // The English form can also be laid out at the supported minimum size.
+        let small = ui_text(&mut app, egui::vec2(880., 660.));
+        assert!(small.contains("Start detection"), "{small}");
     }
 }

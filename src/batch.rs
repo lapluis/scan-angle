@@ -1,10 +1,16 @@
-use crate::{detection::DetectionSettings, imaging};
-use anyhow::{Context, Result, bail};
+use crate::{
+    detection::{DetectionReason, DetectionSettings, Status},
+    i18n::{I18n, LocalizedMessage},
+    imaging,
+};
+use anyhow::{Result, bail};
 use serde_json::{Value, json};
 use std::{
+    fmt,
     fs::{self, File},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 pub const FIELDS: [&str; 9] = [
@@ -25,17 +31,56 @@ pub struct Row {
     pub page: Option<usize>,
     pub angle: Option<f64>,
     pub correction: Option<f64>,
-    pub status: String,
+    pub status: Status,
     pub count: usize,
     pub spread: Option<f64>,
-    pub reason: String,
+    pub reason: RowReason,
     pub preview: String,
     pub fragment_count: Option<usize>,
     pub merged_count: Option<usize>,
 }
+
+/// Explanation attached to a [`Row`].
+///
+/// Detection outcomes keep their typed [`DetectionReason`]. Read or processing
+/// failures keep the full [`anyhow::Error`] behind an [`Arc`] so rows remain
+/// cloneable and can be re-rendered in another language without losing the
+/// error chain.
+#[derive(Debug, Clone)]
+pub enum RowReason {
+    Detection(DetectionReason),
+    Error(Arc<anyhow::Error>),
+}
+
+impl RowReason {
+    /// Render in the language selected by `i18n`.
+    pub fn render(&self, i18n: &I18n) -> String {
+        match self {
+            Self::Detection(reason) => reason.render(i18n),
+            Self::Error(error) => i18n.render_anyhow(error),
+        }
+    }
+}
+
+impl fmt::Display for RowReason {
+    /// Legacy Chinese default, matching the text exported before localization.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Detection(reason) => reason.fmt(formatter),
+            Self::Error(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl From<DetectionReason> for RowReason {
+    fn from(reason: DetectionReason) -> Self {
+        Self::Detection(reason)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Progress {
-    Log(String),
+    Log(LocalizedMessage),
     Files(usize, usize),
 }
 #[derive(Debug, Clone)]
@@ -47,8 +92,14 @@ pub struct BatchOptions {
     pub settings: DetectionSettings,
     pub allow_large_images: bool,
 }
+fn canonicalize_input(path: &Path) -> Result<PathBuf> {
+    dunce::canonicalize(path).map_err(|error| {
+        LocalizedMessage::new("batch.error.input_missing").context(anyhow::Error::new(error))
+    })
+}
+
 pub fn default_output(source: &Path) -> Result<PathBuf> {
-    let source = dunce::canonicalize(source).context("输入文件夹不存在")?;
+    let source = canonicalize_input(source)?;
     let name = source.file_name().unwrap_or_default().to_string_lossy();
     Ok(source
         .parent()
@@ -78,25 +129,27 @@ fn inside(path: &Path, dir: &Path) -> bool {
 fn failure(
     file: &str,
     page: Option<usize>,
-    error: impl std::fmt::Display,
+    error: anyhow::Error,
     s: &DetectionSettings,
 ) -> (Row, Value) {
-    let error = error.to_string();
+    let reason = RowReason::Error(Arc::new(error));
+    // JSON and CSV keep the legacy Display text byte-for-byte.
+    let error = reason.to_string();
     (
         Row {
             file: file.into(),
             page,
             angle: None,
             correction: None,
-            status: "读取失败".into(),
+            status: Status::ReadFailed,
             count: 0,
             spread: None,
-            reason: error.clone(),
+            reason,
             preview: String::new(),
             fragment_count: None,
             merged_count: None,
         },
-        json!({"file":file,"page":page,"angle":null,"correction":null,"status":"读取失败","count":0,"spread":null,"reason":error,"fragment_count":0,"merged_count":0,"thresholds_px":null,"merge":null,"merged_lines":[],"lines":[],"settings":s,"error":error}),
+        json!({"file":file,"page":page,"angle":null,"correction":null,"status":Status::ReadFailed,"count":0,"spread":null,"reason":error.clone(),"fragment_count":0,"merged_count":0,"thresholds_px":null,"merge":null,"merged_lines":[],"lines":[],"settings":s,"error":error}),
     )
 }
 fn process_page(
@@ -126,10 +179,10 @@ fn process_page(
         page: Some(page),
         angle: result.angle,
         correction: result.correction,
-        status: result.status.clone(),
+        status: result.status,
         count: result.count,
         spread: result.spread,
-        reason: result.reason.clone(),
+        reason: result.reason.into(),
         preview,
         fragment_count: Some(result.fragment_count),
         merged_count: Some(result.merged_count),
@@ -160,9 +213,9 @@ fn execute(
     mut progress: impl FnMut(Progress),
 ) -> Result<(Vec<Row>, Vec<Value>)> {
     options.settings.validate()?;
-    let source = dunce::canonicalize(&options.source).context("输入文件夹不存在")?;
+    let source = canonicalize_input(&options.source)?;
     if !source.is_dir() {
-        bail!("输入文件夹不存在");
+        bail!(LocalizedMessage::new("batch.error.input_missing"));
     }
     let destination = match &options.destination {
         Some(destination) => {
@@ -170,15 +223,15 @@ fn execute(
             if let Ok(dest) = dunce::canonicalize(destination)
                 && same_path(&source, &dest)
             {
-                bail!("输出文件夹必须与输入文件夹不同");
+                bail!(LocalizedMessage::new("batch.error.output_same_as_input"));
             }
             fs::create_dir_all(destination)?;
             let destination = dunce::canonicalize(destination)?;
             if same_path(&source, &destination) {
-                bail!("输出文件夹必须与输入文件夹不同");
+                bail!(LocalizedMessage::new("batch.error.output_same_as_input"));
             }
             if inside(&source, &destination) {
-                bail!("输出文件夹不能是输入文件夹的上级目录");
+                bail!(LocalizedMessage::new("batch.error.output_parent_of_input"));
             }
             fs::create_dir_all(destination.join("previews"))?;
             Some(destination)
@@ -219,18 +272,19 @@ fn execute(
         }
     });
     if files.is_empty() {
-        bail!("文件夹中没有支持的图片");
+        bail!(LocalizedMessage::new("batch.error.no_supported_images"));
     }
     let mut rows = Vec::new();
     let mut details = Vec::new();
     progress(Progress::Files(0, files.len()));
     for (index, path) in files.iter().enumerate() {
         let file = path.strip_prefix(&source)?.to_string_lossy().into_owned();
-        progress(Progress::Log(format!(
-            "[{}/{}] {file}",
-            index + 1,
-            files.len()
-        )));
+        progress(Progress::Log(
+            LocalizedMessage::new("batch.progress.file")
+                .with_param("current", index + 1)
+                .with_param("total", files.len())
+                .with_param("file", &file),
+        ));
         let result = imaging::visit_frames(path, options.allow_large_images, &mut |page, image| {
             let item = image.and_then(|image| {
                 process_page(
@@ -272,10 +326,10 @@ fn execute(
                 r.page.map_or(String::new(), |x| x.to_string()),
                 r.angle.map_or(String::new(), float_text),
                 r.correction.map_or(String::new(), float_text),
-                r.status.clone(),
+                r.status.to_string(),
                 r.count.to_string(),
                 r.spread.map_or(String::new(), float_text),
-                r.reason.clone(),
+                r.reason.to_string(),
                 r.preview.clone(),
             ])?;
         }
@@ -291,5 +345,51 @@ fn float_text(n: f64) -> String {
         format!("{n:.1}")
     } else {
         n.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn row_reason_keeps_legacy_text_and_renders_translations() {
+        let reason = RowReason::from(DetectionReason::NearLimit);
+        assert_eq!(reason.to_string(), "角度接近检测范围上限；建议扩大范围复核");
+        let english = I18n::default().select("en-US").unwrap();
+        assert_eq!(
+            reason.render(&english),
+            "The angle is close to the detection limit; consider widening the range"
+        );
+
+        let error = RowReason::Error(Arc::new(anyhow::anyhow!("disk unavailable")));
+        assert_eq!(error.to_string(), "disk unavailable");
+        assert_eq!(error.render(&english), "disk unavailable");
+    }
+
+    #[test]
+    fn localized_error_keeps_os_cause_and_legacy_display() {
+        let directory = tempfile::tempdir().unwrap();
+        let missing = directory.path().join("does-not-exist");
+        let error = canonicalize_input(&missing).unwrap_err();
+        assert_eq!(error.to_string(), "输入文件夹不存在");
+        assert!(error.chain().count() > 1, "{error:#}");
+
+        let english = I18n::default().select("en-US").unwrap();
+        let rendered = english.render_anyhow(&error);
+        assert!(
+            rendered.starts_with("Input folder does not exist: "),
+            "{rendered}"
+        );
+        assert!(rendered.len() > "Input folder does not exist: ".len());
+    }
+
+    #[test]
+    fn progress_log_uses_structured_message() {
+        let message = LocalizedMessage::new("batch.progress.file")
+            .with_param("current", 2)
+            .with_param("total", 5)
+            .with_param("file", "scan.png");
+        assert_eq!(message.to_string(), "[2/5] scan.png");
     }
 }

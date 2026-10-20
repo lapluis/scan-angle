@@ -12,3 +12,6 @@ pub mod resample;
 mod wic;
 
 mod multiframe;
+
+#[cfg(feature = "gui")]
+pub mod preferences;

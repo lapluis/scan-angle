@@ -35,6 +35,7 @@ use tiff::decoder::{Decoder as TiffDecoder, DecodingResult, Limits as TiffLimits
 use tiff::tags::Tag;
 
 use crate::detection::{DetectionSettings, Estimate, Line, estimate_segments};
+use crate::i18n::LocalizedMessage;
 use crate::resample::thumbnail;
 
 /// Pillow's decompression-bomb hard limit (`2 * MAX_IMAGE_PIXELS`).
@@ -59,7 +60,11 @@ pub fn estimate(
     let small = thumbnail(image, settings.analysis_size, &settings.resample);
     let (width, height) = small.dimensions();
     if width == 0 || height == 0 {
-        bail!("图片尺寸无效: {width}x{height}");
+        bail!(
+            LocalizedMessage::new("imaging.error.invalid_dimensions")
+                .with_param("width", width)
+                .with_param("height", height)
+        );
     }
 
     let gray = bt601_gray(&small);
@@ -146,15 +151,32 @@ fn check_pixel_limit(width: u32, height: u32, allow_large: bool) -> Result<()> {
     let pixels = u64::from(width) * u64::from(height);
     if !allow_large && pixels > MAX_PIXELS {
         bail!(
-            "图片尺寸 {width}x{height}（{pixels} 像素）超过像素上限 {MAX_PIXELS}；\
-             如确认为可信的本地扫描图，请允许处理大图"
+            LocalizedMessage::new("imaging.error.pixel_limit")
+                .with_param("width", width)
+                .with_param("height", height)
+                .with_param("pixels", pixels)
+                .with_param("limit", MAX_PIXELS)
         );
     }
     Ok(())
 }
 
-fn format_error(error: impl std::fmt::Display) -> anyhow::Error {
-    anyhow::anyhow!("{error}")
+/// Preserve the original OS/library error (and its chain) instead of flattening
+/// it into a string.
+fn format_error(error: impl std::error::Error + Send + Sync + 'static) -> anyhow::Error {
+    anyhow::Error::new(error)
+}
+
+/// Attach an error as a nested message parameter.
+///
+/// App-owned [`LocalizedMessage`] errors stay typed so translation happens
+/// together with the parent message; OS/library errors remain verbatim text.
+fn with_nested_error(
+    message: LocalizedMessage,
+    name: &str,
+    error: &anyhow::Error,
+) -> LocalizedMessage {
+    message.with_error_param(name, error)
 }
 
 /// Visit every frame/page in an image file, using one-based page numbers.
@@ -181,7 +203,7 @@ pub fn visit_frames(
         .map_err(format_error)?;
     let format = reader
         .format()
-        .ok_or_else(|| anyhow::anyhow!("无法识别的图片格式"))?;
+        .ok_or_else(|| anyhow::Error::new(LocalizedMessage::new("imaging.error.unknown_format")))?;
 
     match format {
         ImageFormat::Tiff => visit_tiff(path, reader.into_inner(), allow_large, visitor),
@@ -385,9 +407,15 @@ fn visit_tiff<R: Read + Seek>(
                         Ok(image) => visitor(page, Ok(image)),
                         Err(fallback_error) => visitor(
                             page,
-                            Err(anyhow::anyhow!(
-                                "{error}（Windows 备选解码失败: {fallback_error}）"
-                            )),
+                            Err(anyhow::Error::new(with_nested_error(
+                                with_nested_error(
+                                    LocalizedMessage::new("imaging.error.wic_fallback"),
+                                    "error",
+                                    &error,
+                                ),
+                                "fallback_error",
+                                &fallback_error,
+                            ))),
                         ),
                     }
                 }
@@ -444,9 +472,12 @@ fn decode_tiff_page<R: Read + Seek>(
         .and_then(|value| image::metadata::Orientation::from_exif(value.min(255) as u8))
         .unwrap_or(image::metadata::Orientation::NoTransforms);
 
-    let color = decoder
-        .colortype()
-        .map_err(|error| anyhow::anyhow!("不支持的 TIFF 颜色类型: {error}"))?;
+    let color = decoder.colortype().map_err(|error| {
+        anyhow::Error::new(
+            LocalizedMessage::new("imaging.error.tiff_color_with_details")
+                .with_param("error", error),
+        )
+    })?;
 
     // `Decoder::read_image` reads only the first plane for planar data, which
     // would silently drop channels. Reject that layout instead.
@@ -455,7 +486,7 @@ fn decode_tiff_page<R: Read + Seek>(
         .map_err(format_error)?
         .unwrap_or(1);
     if planar == 2 && color.num_samples() > 1 {
-        bail!("不支持的 TIFF planar（分平面）多通道数据");
+        bail!(LocalizedMessage::new("imaging.error.tiff_planar"));
     }
     // The tiff crate does not interpret FillOrder; reject the (rare) reversed
     // bit order for packed sub-byte samples instead of expanding them wrongly.
@@ -464,7 +495,10 @@ fn decode_tiff_page<R: Read + Seek>(
         .map_err(format_error)?
         .unwrap_or(1);
     if fill_order != 1 && color.bit_depth() < 8 {
-        bail!("不支持的 TIFF FillOrder={fill_order}（仅支持最高位优先）");
+        bail!(
+            LocalizedMessage::new("imaging.error.tiff_fill_order")
+                .with_param("fill_order", fill_order)
+        );
     }
     ensure_supported_tiff_color(&color)?;
 
@@ -477,15 +511,25 @@ fn decode_tiff_page<R: Read + Seek>(
 fn checked_pixels(width: u32, height: u32) -> Result<usize> {
     let pixels = u64::from(width)
         .checked_mul(u64::from(height))
-        .ok_or_else(|| anyhow::anyhow!("图片尺寸溢出"))?;
-    usize::try_from(pixels).map_err(|_| anyhow::anyhow!("图片尺寸超出平台限制"))
+        .ok_or_else(|| {
+            anyhow::Error::new(LocalizedMessage::new("imaging.error.dimensions_overflow"))
+        })?;
+    usize::try_from(pixels).map_err(|_| {
+        anyhow::Error::new(LocalizedMessage::new(
+            "imaging.error.dimensions_platform_limit",
+        ))
+    })
 }
 
-fn truncate_to<T>(mut data: Vec<T>, length: usize, what: &str) -> Result<Vec<T>> {
+/// `what_key` is the catalog key of the nested label (for example
+/// `imaging.what.tiff_gray`), so the label is not baked in as Chinese text.
+fn truncate_to<T>(mut data: Vec<T>, length: usize, what_key: &str) -> Result<Vec<T>> {
     if data.len() < length {
         bail!(
-            "{what}数据长度不足（需要 {length} 个样本，实际 {}）",
-            data.len()
+            LocalizedMessage::new("imaging.error.samples_short")
+                .with_message_param("what", LocalizedMessage::new(what_key))
+                .with_param("needed", length)
+                .with_param("actual", data.len())
         );
     }
     data.truncate(length);
@@ -507,9 +551,10 @@ fn gray8_from_packed(width: u32, height: u32, bits: u8, data: Vec<u8>) -> Result
     let row_bytes = (width_usize * bits as usize).div_ceil(8);
     if data.len() < row_bytes * height_usize {
         bail!(
-            "TIFF 灰度数据长度不足（位深 {bits}，需要 {} 字节，实际 {}）",
-            row_bytes * height_usize,
-            data.len()
+            LocalizedMessage::new("imaging.error.gray_bits_short")
+                .with_param("bits", bits)
+                .with_param("needed", row_bytes * height_usize)
+                .with_param("actual", data.len())
         );
     }
     let maximum = (1u32 << bits) - 1;
@@ -527,8 +572,9 @@ fn gray8_from_packed(width: u32, height: u32, bits: u8, data: Vec<u8>) -> Result
             expanded.push(((value * 255 + maximum / 2) / maximum) as u8);
         }
     }
-    let buffer = ImageBuffer::from_raw(width, height, expanded)
-        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度数据长度与尺寸不符"))?;
+    let buffer = ImageBuffer::from_raw(width, height, expanded).ok_or_else(|| {
+        anyhow::Error::new(LocalizedMessage::new("imaging.error.gray_length_mismatch"))
+    })?;
     Ok(DynamicImage::ImageLuma8(buffer))
 }
 
@@ -553,7 +599,8 @@ fn ensure_supported_tiff_color(color: &TiffColorType) -> Result<()> {
         Ok(())
     } else {
         bail!(
-            "不支持的 TIFF 颜色类型 {color:?}；仅支持灰度、灰度+Alpha、RGB、RGBA 和 CMYK（CMYKA、调色板、YCbCr、Lab 与多波段均不支持）"
+            LocalizedMessage::new("imaging.error.unsupported_tiff_color")
+                .with_param("color", format!("{color:?}"))
         )
     }
 }
@@ -592,196 +639,237 @@ fn tiff_to_dynamic(
     match color {
         TiffColorType::Gray(bits) => match data {
             DecodingResult::U8(values) if bits == 8 => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF 灰度数据长度与尺寸不符"))?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.gray_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageLuma8(buffer))
             }
             DecodingResult::U8(values) if (1..8).contains(&bits) => {
                 gray8_from_packed(width, height, bits, values)
             }
             DecodingResult::U16(values) if (9..=16).contains(&bits) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values = values
                     .into_iter()
                     .map(|value| value.min(255) as u8)
                     .collect();
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF 灰度数据长度与尺寸不符"))?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.gray_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageLuma8(buffer))
             }
             DecodingResult::U32(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::U64(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::I8(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::I16(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::I32(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::I64(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::F32(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| (v as f64).clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             DecodingResult::F64(values) => {
-                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values = truncate_to(values, pixels, "imaging.what.tiff_gray")?;
                 let values: Vec<u8> = values
                     .into_iter()
                     .map(|v| v.clamp(0., 255.) as u8)
                     .collect();
                 Ok(DynamicImage::ImageLuma8(
-                    ImageBuffer::from_raw(width, height, values)
-                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                    ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                        anyhow::Error::new(LocalizedMessage::new(
+                            "imaging.error.gray_dimensions_mismatch",
+                        ))
+                    })?,
                 ))
             }
             other => bail!(
-                "不支持的 TIFF 灰度采样布局：位深 {bits}，样本类型 {}",
-                decoding_kind(&other)
+                LocalizedMessage::new("imaging.error.gray_layout")
+                    .with_param("bits", bits)
+                    .with_param("kind", decoding_kind(&other))
             ),
         },
         TiffColorType::GrayA(bits) => match data {
             DecodingResult::U8(values) if bits == 8 => {
-                let values = truncate_to(values, pixels * 2, "TIFF 灰度+Alpha")?;
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF 灰度+Alpha 数据长度与尺寸不符"))?;
+                let values = truncate_to(values, pixels * 2, "imaging.what.tiff_gray_alpha")?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new(
+                        "imaging.error.gray_alpha_length_mismatch",
+                    ))
+                })?;
                 Ok(DynamicImage::ImageLumaA8(buffer))
             }
             DecodingResult::U16(values) if (9..=16).contains(&bits) => {
-                let values = truncate_to(values, pixels * 2, "TIFF 灰度+Alpha")?;
+                let values = truncate_to(values, pixels * 2, "imaging.what.tiff_gray_alpha")?;
                 let values = values
                     .into_iter()
                     .map(|value| scale_to_u16(value, bits))
                     .collect();
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF 灰度+Alpha 数据长度与尺寸不符"))?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new(
+                        "imaging.error.gray_alpha_length_mismatch",
+                    ))
+                })?;
                 Ok(DynamicImage::ImageLumaA16(buffer))
             }
             other => bail!(
-                "不支持的 TIFF 灰度+Alpha 采样布局：位深 {bits}，样本类型 {}",
-                decoding_kind(&other)
+                LocalizedMessage::new("imaging.error.gray_alpha_layout")
+                    .with_param("bits", bits)
+                    .with_param("kind", decoding_kind(&other))
             ),
         },
         TiffColorType::RGB(bits) => match data {
             DecodingResult::U8(values) if bits == 8 => {
-                let values = truncate_to(values, pixels * 3, "TIFF RGB")?;
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF RGB 数据长度与尺寸不符"))?;
+                let values = truncate_to(values, pixels * 3, "imaging.what.tiff_rgb")?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.rgb_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageRgb8(buffer))
             }
             DecodingResult::U16(values) if (9..=16).contains(&bits) => {
-                let values = truncate_to(values, pixels * 3, "TIFF RGB")?;
+                let values = truncate_to(values, pixels * 3, "imaging.what.tiff_rgb")?;
                 let values = values
                     .into_iter()
                     .map(|value| scale_to_u16(value, bits))
                     .collect();
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF RGB 数据长度与尺寸不符"))?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.rgb_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageRgb16(buffer))
             }
             other => bail!(
-                "不支持的 TIFF RGB 采样布局：位深 {bits}，样本类型 {}",
-                decoding_kind(&other)
+                LocalizedMessage::new("imaging.error.rgb_layout")
+                    .with_param("bits", bits)
+                    .with_param("kind", decoding_kind(&other))
             ),
         },
         TiffColorType::RGBA(bits) => match data {
             DecodingResult::U8(values) if bits == 8 => {
-                let values = truncate_to(values, pixels * 4, "TIFF RGBA")?;
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF RGBA 数据长度与尺寸不符"))?;
+                let values = truncate_to(values, pixels * 4, "imaging.what.tiff_rgba")?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.rgba_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageRgba8(buffer))
             }
             DecodingResult::U16(values) if (9..=16).contains(&bits) => {
-                let values = truncate_to(values, pixels * 4, "TIFF RGBA")?;
+                let values = truncate_to(values, pixels * 4, "imaging.what.tiff_rgba")?;
                 let values = values
                     .into_iter()
                     .map(|value| scale_to_u16(value, bits))
                     .collect();
-                let buffer = ImageBuffer::from_raw(width, height, values)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF RGBA 数据长度与尺寸不符"))?;
+                let buffer = ImageBuffer::from_raw(width, height, values).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.rgba_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageRgba16(buffer))
             }
             other => bail!(
-                "不支持的 TIFF RGBA 采样布局：位深 {bits}，样本类型 {}",
-                decoding_kind(&other)
+                LocalizedMessage::new("imaging.error.rgba_layout")
+                    .with_param("bits", bits)
+                    .with_param("kind", decoding_kind(&other))
             ),
         },
         TiffColorType::CMYK(bits) => match data {
             DecodingResult::U8(values) if bits == 8 => {
-                let values = truncate_to(values, pixels * 4, "TIFF CMYK")?;
+                let values = truncate_to(values, pixels * 4, "imaging.what.tiff_cmyk")?;
                 let mut rgb = Vec::with_capacity(pixels * 3);
                 for cmyk in values.as_chunks::<4>().0 {
                     rgb.extend_from_slice(&cmyk8_to_rgb(cmyk));
                 }
-                let buffer = ImageBuffer::from_raw(width, height, rgb)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF CMYK 数据长度与尺寸不符"))?;
+                let buffer = ImageBuffer::from_raw(width, height, rgb).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.cmyk_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageRgb8(buffer))
             }
             DecodingResult::U16(values) if (9..=16).contains(&bits) => {
-                let values = truncate_to(values, pixels * 4, "TIFF CMYK")?;
+                let values = truncate_to(values, pixels * 4, "imaging.what.tiff_cmyk")?;
                 // Normalize the source depth first; cmyk16_to_rgb already
                 // produces a full 16-bit result.
                 let values: Vec<u16> = values
@@ -792,17 +880,20 @@ fn tiff_to_dynamic(
                 for cmyk in values.as_chunks::<4>().0 {
                     rgb.extend_from_slice(&cmyk16_to_rgb(cmyk));
                 }
-                let buffer = ImageBuffer::from_raw(width, height, rgb)
-                    .ok_or_else(|| anyhow::anyhow!("TIFF CMYK 数据长度与尺寸不符"))?;
+                let buffer = ImageBuffer::from_raw(width, height, rgb).ok_or_else(|| {
+                    anyhow::Error::new(LocalizedMessage::new("imaging.error.cmyk_length_mismatch"))
+                })?;
                 Ok(DynamicImage::ImageRgb16(buffer))
             }
             other => bail!(
-                "不支持的 TIFF CMYK 采样布局：位深 {bits}，样本类型 {}",
-                decoding_kind(&other)
+                LocalizedMessage::new("imaging.error.cmyk_layout")
+                    .with_param("bits", bits)
+                    .with_param("kind", decoding_kind(&other))
             ),
         },
         other => bail!(
-            "不支持的 TIFF 颜色类型 {other:?}；仅支持灰度、灰度+Alpha、RGB、RGBA 和 CMYK（CMYKA、调色板、YCbCr、Lab 与多波段均不支持）"
+            LocalizedMessage::new("imaging.error.unsupported_tiff_color")
+                .with_param("color", format!("{other:?}"))
         ),
     }
 }
@@ -871,6 +962,20 @@ mod tests {
     }
 
     #[test]
+    fn nested_message_params_translate_with_parent() {
+        let error = truncate_to(vec![1_u8, 2], 4, "imaging.what.tiff_gray").unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "TIFF 灰度数据长度不足（需要 4 个样本，实际 2）"
+        );
+        let english = crate::i18n::I18n::default().select("en-US").unwrap();
+        assert_eq!(
+            english.render_anyhow(&error),
+            "TIFF grayscale data is too short (expected 4 samples, found 2)"
+        );
+    }
+
+    #[test]
     fn preview_layers_match_the_python_colors() {
         let original = RgbImage::from_pixel(100, 100, Rgb([255, 255, 255]));
         let merged = vec![
@@ -894,7 +999,7 @@ mod tests {
         assert_eq!(small.dimensions(), (1000, 1200));
         assert!(result.angle.is_some());
         assert!(result.angle.unwrap().abs() < 0.15);
-        assert_eq!(result.status, "可信");
+        assert_eq!(result.status, crate::detection::Status::Trusted);
         assert!(!lines.is_empty());
         assert_eq!(result.count, lines.len());
 

@@ -69,16 +69,6 @@ fallback = "en-US"
 "report.header.counts" = "检测 / 合并 / 入选"
 "report.header.status" = "状态"
 
-"batch.csv.file" = "文件"
-"batch.csv.page" = "页码"
-"batch.csv.angle" = "偏差角度_度_顺时针为正"
-"batch.csv.correction" = "转正角度_度_顺时针为正"
-"batch.csv.status" = "状态"
-"batch.csv.merged_count" = "合并直线数"
-"batch.csv.spread" = "角度离散_度"
-"batch.csv.reason" = "说明"
-"batch.csv.preview" = "预览"
-"batch.output_suffix" = "_角度结果"
 "batch.error.input_missing" = "输入文件夹不存在"
 "batch.error.output_same_as_input" = "输出文件夹必须与输入文件夹不同"
 "batch.error.output_parent_of_input" = "输出文件夹不能是输入文件夹的上级目录"
@@ -153,3 +143,69 @@ fallback = "en-US"
 "i18n.error.invalid_file" = "语言文件 {path} 无效：{detail}"
 "i18n.error.locale_mismatch" = "语言文件 {path} 声明的区域 {declared} 与所选区域 {selected} 不一致"
 "i18n.error.builtin_catalog" = "内置语言目录 {locale} 无效：{detail}"
+
+"i18n.error.unavailable_locale" = "没有可用的语言包：{locale}"
+
+"cli.usage" = "用法："
+
+"cli.arguments" = "参数"
+
+"cli.options" = "选项"
+
+"cli.help_hint" = "使用 --help 查看帮助。"
+
+"cli.help.help" = "显示帮助"
+
+"cli.help.version" = "显示版本"
+
+"cli.help.folder" = "输入图片文件夹；省略时打开窗口"
+
+"cli.help.output" = "输出目录；省略时只输出终端结果"
+
+"cli.help.recursive" = "包含子文件夹"
+
+"cli.help.lang" = "显示语言，例如 zh-CN 或 en-US"
+
+"cli.help.lang_file" = "外置 TOML 语言文件"
+
+"cli.help.max_angle" = "最大偏角（1～30°）"
+
+"cli.help.min_line_percent" = "最短直线占对应方向边长的百分比"
+
+"cli.help.min_line_pixels" = "最短直线绝对长度（分析像素）"
+
+"cli.help.analysis_size" = "分析图最长边（256～10000 像素，仅缩小）"
+
+"cli.help.resample" = "缩放算法"
+
+"cli.help.merge_angle" = "合并角度容差（度）"
+
+"cli.help.merge_distance_percent" = "合并垂直距离容差（短边百分比）"
+
+"cli.help.merge_distance_pixels" = "合并垂直距离下限（像素）"
+
+"cli.help.merge_gap_percent" = "合并间隙容差（短边百分比）"
+
+"cli.help.merge_gap_pixels" = "合并间隙容差下限（像素）"
+
+"cli.error.unknown_argument" = "无法识别的参数：{argument}"
+
+"cli.error.missing_required" = "缺少必需参数：{argument}"
+
+"cli.error.invalid_value" = "参数 {argument} 的值无效：{value}"
+
+"cli.error.conflict" = "参数 {argument} 与 {other} 冲突"
+
+"cli.error.missing_value" = "参数缺少有效值：{argument}"
+
+"cli.error.invalid_arguments" = "命令行参数无效"
+
+"gui.label.language" = "语言"
+
+"gui.window.warnings" = "语言或设置提示"
+
+"preferences.error.read" = "无法读取语言偏好 {path}：{error}"
+
+"preferences.error.write" = "无法保存语言偏好 {path}：{error}"
+
+"preferences.error.location" = "无法确定语言偏好的保存目录"

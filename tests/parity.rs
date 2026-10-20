@@ -1,6 +1,6 @@
 use scan_angle::{
     batch::{self, BatchOptions, Progress},
-    detection::{DetectionSettings, estimate_segments},
+    detection::{DetectionSettings, Status, estimate_segments},
     imaging,
 };
 use serde_json::Value;
@@ -71,7 +71,11 @@ fn python_image_angles_and_classification() {
         let name = c["file"].as_str().unwrap();
         let image = image::open(fixture(name)).unwrap();
         let (r, _, _) = imaging::estimate(&image, &DetectionSettings::default()).unwrap();
-        assert_eq!(r.status, c["status"].as_str().unwrap(), "{name}: {r:?}");
+        assert_eq!(
+            r.status.to_string(),
+            c["status"].as_str().unwrap(),
+            "{name}: {r:?}"
+        );
         match (c["angle"].as_f64(), r.angle) {
             (Some(w), Some(g)) => assert!((w - g).abs() <= 0.12, "{name}: expected {w}, got {g}"),
             (None, None) => {}
@@ -155,7 +159,12 @@ fn batch_outputs_failures_progress_and_exclusion() {
     .unwrap();
     assert_eq!(counts, vec![(0, 3), (1, 3), (2, 3), (3, 3)]);
     assert_eq!(rows.len(), 4);
-    assert_eq!(rows.iter().filter(|r| r.status == "读取失败").count(), 1);
+    assert_eq!(
+        rows.iter()
+            .filter(|r| r.status == Status::ReadFailed)
+            .count(),
+        1
+    );
     assert!(!rows.iter().any(|r| r.file.contains("excluded")));
     let bytes = fs::read(dest.join("angles.csv")).unwrap();
     assert_eq!(&bytes[..3], &[0xef, 0xbb, 0xbf]);
@@ -174,7 +183,7 @@ fn batch_outputs_failures_progress_and_exclusion() {
         assert!(d["lines"].is_array());
     }
     for row in rows {
-        if row.status != "读取失败" {
+        if row.status != Status::ReadFailed {
             assert!(dest.join(row.preview).is_file());
         }
     }
@@ -211,8 +220,8 @@ fn console_mode_writes_no_files() {
     let rows = batch::run_batch(&options, |_| {}).unwrap();
     assert_eq!(rows.len(), 3);
     assert!(rows.iter().all(|r| r.preview.is_empty()));
-    assert!(rows.iter().any(|r| r.status == "需人工确认"));
-    assert!(rows.iter().any(|r| r.status == "读取失败"));
+    assert!(rows.iter().any(|r| r.status == Status::NeedsReview));
+    assert!(rows.iter().any(|r| r.status == Status::ReadFailed));
     let entries: Vec<_> = fs::read_dir(temp.path())
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -280,7 +289,11 @@ fn executable_cli_contract() {
         .output()
         .unwrap();
     assert_eq!(invalid.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&invalid.stderr).contains("--max-angle"));
+    assert!(
+        String::from_utf8_lossy(&invalid.stderr).contains("--max-angle"),
+        "stderr: {}",
+        String::from_utf8_lossy(&invalid.stderr)
+    );
     let dir = tempfile::tempdir().unwrap();
     let output = dir.path().join("output");
     let batch = Command::new(binary)

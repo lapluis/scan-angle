@@ -3,6 +3,8 @@
 use anyhow::{Result, bail};
 use image::{DynamicImage, RgbImage};
 use std::{os::windows::ffi::OsStrExt, path::Path};
+
+use crate::i18n::LocalizedMessage;
 use windows::{
     Win32::{
         Foundation::{GENERIC_READ, RPC_E_CHANGED_MODE},
@@ -42,14 +44,16 @@ pub fn decode_page(path: &Path, page: usize, allow_large: bool) -> Result<Dynami
         let (mut width, mut height) = (0, 0);
         frame.GetSize(&mut width, &mut height)?;
         if !allow_large && u64::from(width) * u64::from(height) > crate::imaging::MAX_PIXELS {
-            bail!("图片超过像素保护上限");
+            bail!(LocalizedMessage::new("wic.error.pixel_limit"));
         }
-        let stride = width
-            .checked_mul(3)
-            .ok_or_else(|| anyhow::anyhow!("图片尺寸溢出"))?;
+        let stride = width.checked_mul(3).ok_or_else(|| {
+            anyhow::Error::new(LocalizedMessage::new("wic.error.dimensions_overflow"))
+        })?;
         let size = (stride as usize)
             .checked_mul(height as usize)
-            .ok_or_else(|| anyhow::anyhow!("图片尺寸溢出"))?;
+            .ok_or_else(|| {
+                anyhow::Error::new(LocalizedMessage::new("wic.error.dimensions_overflow"))
+            })?;
         let converter = factory.CreateFormatConverter()?;
         converter.Initialize(
             &frame,
@@ -64,8 +68,9 @@ pub fn decode_page(path: &Path, page: usize, allow_large: bool) -> Result<Dynami
         data.resize(size, 0);
         converter.CopyPixels(std::ptr::null(), stride, &mut data)?;
         Ok(DynamicImage::ImageRgb8(
-            RgbImage::from_raw(width, height, data)
-                .ok_or_else(|| anyhow::anyhow!("图片数据长度不匹配"))?,
+            RgbImage::from_raw(width, height, data).ok_or_else(|| {
+                anyhow::Error::new(LocalizedMessage::new("wic.error.data_length_mismatch"))
+            })?,
         ))
     }
 }

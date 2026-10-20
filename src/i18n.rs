@@ -30,7 +30,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt, fs,
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
 };
 
 /// Catalog schema version understood by this module.
@@ -61,6 +61,8 @@ pub type I18nResult<T> = std::result::Result<T, LocalizedMessage>;
 pub struct LocalizedMessage {
     key: String,
     parameters: BTreeMap<String, String>,
+    nested: BTreeMap<String, LocalizedMessage>,
+    nested_errors: BTreeMap<String, Vec<ErrorPart>>,
 }
 
 impl LocalizedMessage {
@@ -69,6 +71,8 @@ impl LocalizedMessage {
         Self {
             key: key.into(),
             parameters: BTreeMap::new(),
+            nested: BTreeMap::new(),
+            nested_errors: BTreeMap::new(),
         }
     }
 
@@ -77,6 +81,38 @@ impl LocalizedMessage {
     pub fn with_param(mut self, name: impl Into<String>, value: impl fmt::Display) -> Self {
         self.parameters.insert(name.into(), value.to_string());
         self
+    }
+
+    /// A parameter whose text must be translated when the parent is rendered.
+    pub fn with_message_param(mut self, name: impl Into<String>, message: Self) -> Self {
+        self.nested.insert(name.into(), message);
+        self
+    }
+
+    /// Snapshot a nested error as typed messages and raw third-party details.
+    pub fn with_error_param(mut self, name: impl Into<String>, error: &AnyhowError) -> Self {
+        let parts = error
+            .chain()
+            .map(|cause| {
+                if let Some(context) = cause.downcast_ref::<LocalizedContext>() {
+                    ErrorPart::Message(context.message.clone())
+                } else if let Some(message) = cause.downcast_ref::<LocalizedMessage>() {
+                    ErrorPart::Message(message.clone())
+                } else {
+                    ErrorPart::Text(cause.to_string())
+                }
+            })
+            .collect();
+        self.nested_errors.insert(name.into(), parts);
+        self
+    }
+
+    /// Attach this message as typed context, preserving the underlying cause.
+    pub fn context(self, source: anyhow::Error) -> anyhow::Error {
+        anyhow::Error::new(LocalizedContext {
+            message: self,
+            source,
+        })
     }
 
     /// Semantic catalog key.
@@ -93,13 +129,52 @@ impl LocalizedMessage {
 impl fmt::Display for LocalizedMessage {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match legacy_messages().get(&self.key) {
-            Some(template) => formatter.write_str(&template.render(&self.parameters)),
+            Some(template) => {
+                let mut values = self.parameters.clone();
+                for (key, message) in &self.nested {
+                    values.insert(key.clone(), message.to_string());
+                }
+                for (key, parts) in &self.nested_errors {
+                    if let Some(part) = parts.first() {
+                        values.insert(
+                            key.clone(),
+                            match part {
+                                ErrorPart::Message(m) => m.to_string(),
+                                ErrorPart::Text(t) => t.clone(),
+                            },
+                        );
+                    }
+                }
+                formatter.write_str(&template.render(&values))
+            }
             None => formatter.write_str(&self.key),
         }
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ErrorPart {
+    Message(LocalizedMessage),
+    Text(String),
+}
+
 impl std::error::Error for LocalizedMessage {}
+
+#[derive(Debug)]
+struct LocalizedContext {
+    message: LocalizedMessage,
+    source: anyhow::Error,
+}
+impl fmt::Display for LocalizedContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.message.fmt(f)
+    }
+}
+impl std::error::Error for LocalizedContext {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.source.as_ref())
+    }
+}
 
 /// One available language, in the form exposed by
 /// [`I18n::available_languages`].
@@ -230,8 +305,8 @@ impl LoadOptions {
 #[derive(Debug, Clone)]
 pub struct I18n {
     selected: String,
-    builtins: BTreeMap<String, Catalog>,
-    external: BTreeMap<String, Catalog>,
+    builtins: Arc<BTreeMap<String, Catalog>>,
+    external: Arc<BTreeMap<String, Catalog>>,
     warnings: Vec<Warning>,
 }
 
@@ -239,8 +314,8 @@ impl Default for I18n {
     fn default() -> Self {
         Self::with_locale(DEFAULT_LOCALE).unwrap_or_else(|_| Self {
             selected: DEFAULT_LOCALE.to_string(),
-            builtins: BTreeMap::new(),
-            external: BTreeMap::new(),
+            builtins: Arc::new(BTreeMap::new()),
+            external: Arc::new(BTreeMap::new()),
             warnings: Vec::new(),
         })
     }
@@ -280,8 +355,8 @@ impl I18n {
         }
         Ok(Self {
             selected: selected.to_string(),
-            builtins,
-            external,
+            builtins: Arc::new(builtins),
+            external: Arc::new(external),
             warnings,
         })
     }
@@ -405,7 +480,26 @@ impl I18n {
     /// Translate a typed [`LocalizedMessage`].
     pub fn translate_message(&self, message: &LocalizedMessage) -> String {
         match self.template(message.key()) {
-            Some(template) => template.render(message.parameters()),
+            Some(template) => {
+                let mut values = message.parameters.clone();
+                for (key, nested) in &message.nested {
+                    values.insert(key.clone(), self.translate_message(nested));
+                }
+                for (key, parts) in &message.nested_errors {
+                    values.insert(
+                        key.clone(),
+                        parts
+                            .iter()
+                            .map(|part| match part {
+                                ErrorPart::Message(m) => self.translate_message(m),
+                                ErrorPart::Text(t) => t.clone(),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(&self.translate("error.detail_separator")),
+                    );
+                }
+                template.render(&values)
+            }
             None => message.key().to_string(),
         }
     }
@@ -419,7 +513,9 @@ impl I18n {
         let separator = self.translate("error.detail_separator");
         let mut parts = Vec::new();
         for cause in error.chain() {
-            if let Some(message) = cause.downcast_ref::<LocalizedMessage>() {
+            if let Some(context) = cause.downcast_ref::<LocalizedContext>() {
+                parts.push(self.translate_message(&context.message));
+            } else if let Some(message) = cause.downcast_ref::<LocalizedMessage>() {
                 parts.push(self.translate_message(message));
             } else {
                 parts.push(cause.to_string());
@@ -1891,5 +1987,18 @@ mod tests {
         let service = discover_at(&directory, "zh-CN");
         assert!(service.warnings().is_empty());
         assert_eq!(service.available_languages().len(), 2);
+    }
+    #[test]
+    fn nested_context_and_embedded_errors_switch_languages_without_losing_causes() {
+        let cause = LocalizedMessage::new("imaging.error.unknown_format")
+            .context(anyhow::anyhow!("native decoder detail"));
+        let nested =
+            LocalizedMessage::new("gui.error.open_window").with_error_param("error", &cause);
+        let english = I18n::with_locale("en-US").unwrap();
+        let text = english.translate_message(&nested);
+        assert!(text.contains("Unrecognized image format"), "{text}");
+        assert!(text.contains("native decoder detail"), "{text}");
+        assert!(nested.to_string().contains("无法识别的图片格式"));
+        assert!(!nested.to_string().contains("native decoder detail")); // legacy error Display
     }
 }

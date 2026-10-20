@@ -2,6 +2,8 @@
 use anyhow::{Result, bail};
 use std::io::{Read, Seek, SeekFrom};
 
+use crate::i18n::LocalizedMessage;
+
 pub fn apng_default<R: Read + Seek>(reader: &mut R) -> Result<bool> {
     reader.seek(SeekFrom::Start(8))?;
     let mut animated = false;
@@ -31,7 +33,9 @@ pub fn mpo_entries<R: Read + Seek>(reader: &mut R) -> Result<Vec<(u64, u64)>> {
             let mut marker = [0; 2];
             reader.read_exact(&mut marker)?;
             if marker[0] != 0xff {
-                bail!("无效 JPEG 标记");
+                bail!(LocalizedMessage::new(
+                    "multiframe.error.invalid_jpeg_marker"
+                ));
             }
             while marker[1] == 0xff {
                 reader.read_exact(&mut marker[1..])?;
@@ -46,7 +50,9 @@ pub fn mpo_entries<R: Read + Seek>(reader: &mut R) -> Result<Vec<(u64, u64)>> {
             reader.read_exact(&mut len)?;
             let size = u16::from_be_bytes(len) as usize;
             if size < 2 {
-                bail!("无效 JPEG 段长度");
+                bail!(LocalizedMessage::new(
+                    "multiframe.error.invalid_jpeg_segment_length"
+                ));
             }
             let start = reader.stream_position()?;
             if marker[1] == 0xe2 {
@@ -67,12 +73,16 @@ fn parse_mpf(data: &[u8], base: u64, file_len: u64) -> Result<Vec<(u64, u64)>> {
     let little = match data.get(..2) {
         Some(b"II") => true,
         Some(b"MM") => false,
-        _ => bail!("无效 MPF 字节序"),
+        _ => bail!(LocalizedMessage::new(
+            "multiframe.error.invalid_mpf_endianness"
+        )),
     };
     let u16_at = |i: usize| -> Result<u16> {
         let b: [u8; 2] = data
             .get(i..i + 2)
-            .ok_or_else(|| anyhow::anyhow!("截断 MPF"))?
+            .ok_or_else(|| {
+                anyhow::Error::new(LocalizedMessage::new("multiframe.error.truncated_mpf"))
+            })?
             .try_into()?;
         Ok(if little {
             u16::from_le_bytes(b)
@@ -83,7 +93,9 @@ fn parse_mpf(data: &[u8], base: u64, file_len: u64) -> Result<Vec<(u64, u64)>> {
     let u32_at = |i: usize| -> Result<u32> {
         let b: [u8; 4] = data
             .get(i..i + 4)
-            .ok_or_else(|| anyhow::anyhow!("截断 MPF"))?
+            .ok_or_else(|| {
+                anyhow::Error::new(LocalizedMessage::new("multiframe.error.truncated_mpf"))
+            })?
             .try_into()?;
         Ok(if little {
             u32::from_le_bytes(b)
@@ -104,7 +116,9 @@ fn parse_mpf(data: &[u8], base: u64, file_len: u64) -> Result<Vec<(u64, u64)>> {
             || bytes == 0
             || offset.checked_add(bytes).is_none_or(|n| n > data.len())
         {
-            bail!("无效 MPF 图像目录");
+            bail!(LocalizedMessage::new(
+                "multiframe.error.invalid_mpf_directory"
+            ));
         }
         let mut entries = Vec::new();
         for n in 0..bytes / 16 {
@@ -115,7 +129,9 @@ fn parse_mpf(data: &[u8], base: u64, file_len: u64) -> Result<Vec<(u64, u64)>> {
                 base + u32_at(offset + n * 16 + 8)? as u64
             };
             if size == 0 || start.checked_add(size).is_none_or(|end| end > file_len) {
-                bail!("MPF 图像偏移越界");
+                bail!(LocalizedMessage::new(
+                    "multiframe.error.mpf_offset_out_of_bounds"
+                ));
             }
             entries.push((start, size));
         }

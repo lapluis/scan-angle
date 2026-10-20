@@ -1,11 +1,17 @@
+use crate::i18n::{I18n, LoadOptions, LocalizedMessage};
 use crate::{batch::BatchOptions, detection::DetectionSettings};
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, FromArgMatches, Parser};
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Parser)]
-#[command(version, about = "扫描偏角检测：正数表示顺时针，输入图不修改。")]
+#[command(version)]
 pub struct Cli {
     pub folder: Option<PathBuf>,
+    #[arg(long)]
+    pub lang: Option<String>,
+    #[arg(long)]
+    pub lang_file: Option<PathBuf>,
     #[arg(short, long)]
     pub output: Option<PathBuf>,
     #[arg(short, long)]
@@ -30,17 +36,16 @@ pub struct Cli {
     pub merge_gap_percent: f64,
     #[arg(long, default_value_t = 6., allow_hyphen_values = true)]
     pub merge_gap_pixels: f64,
-    #[arg(long, help = "允许处理超过默认像素保护上限的可信本地扫描图")]
+    #[arg(long)]
     pub allow_large_images: bool,
-    #[arg(
-        long,
-        requires = "folder",
-        help = "以 JSON 格式输出检测结果，结构与 details.json 相同"
-    )]
+    #[arg(long, requires = "folder")]
     pub json: bool,
 }
 impl Cli {
     pub fn settings(&self) -> Result<DetectionSettings, clap::Error> {
+        self.settings_localized(&I18n::default())
+    }
+    pub fn settings_localized(&self, i18n: &I18n) -> Result<DetectionSettings, clap::Error> {
         let s = DetectionSettings {
             max_angle: self.max_angle,
             min_line_percent: self.min_line_percent,
@@ -57,11 +62,11 @@ impl Cli {
             if (1. ..=30.).contains(&s.max_angle) {
                 Ok(())
             } else {
-                anyhow::bail!("max_angle 必须在 1～30 之间")
+                Err(LocalizedMessage::new("cli.error.max_angle_range").into())
             }
         });
         if let Err(e) = result {
-            let mut message = e.to_string();
+            let mut message = i18n.render_anyhow(&e);
             for name in [
                 "max_angle",
                 "min_line_percent",
@@ -76,9 +81,180 @@ impl Cli {
             ] {
                 message = message.replace(name, &format!("--{}", name.replace('_', "-")));
             }
-            return Err(Self::command().error(clap::error::ErrorKind::ValueValidation, message));
+            let mut error = Self::localized_command(i18n)
+                .error(clap::error::ErrorKind::ValueValidation, message.clone());
+            error.insert(
+                clap::error::ContextKind::Custom,
+                clap::error::ContextValue::String(message),
+            );
+            return Err(error);
         }
         Ok(s)
+    }
+
+    /// Scan only language options before Clap handles help/errors. Other value
+    /// options are consumed so a path or value cannot masquerade as a flag.
+    pub fn bootstrap(args: &[OsString]) -> (Option<String>, Option<PathBuf>) {
+        let mut lang = None;
+        let mut file = None;
+        let mut index = 1;
+        while index < args.len() {
+            let value = args[index].to_string_lossy();
+            if value == "--" {
+                break;
+            }
+            if let Some(locale) = value.strip_prefix("--lang=") {
+                lang = Some(locale.to_owned());
+            } else if value == "--lang" || value == "--lang-file" {
+                if let Some(next) = args.get(index + 1)
+                    && !next.to_string_lossy().starts_with('-')
+                {
+                    if value == "--lang" {
+                        lang = Some(next.to_string_lossy().into_owned());
+                    } else {
+                        file = Some(PathBuf::from(next));
+                    }
+                    index += 1;
+                }
+            } else if args[index].as_encoded_bytes().starts_with(b"--lang-file=") {
+                // Preserve native path encoding, including non-UTF8 Unix paths.
+                #[cfg(windows)]
+                {
+                    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+                    file = Some(PathBuf::from(OsString::from_wide(
+                        &args[index].encode_wide().skip(12).collect::<Vec<_>>(),
+                    )));
+                }
+                #[cfg(unix)]
+                {
+                    use std::os::unix::ffi::OsStringExt;
+                    file = Some(PathBuf::from(OsString::from_vec(
+                        args[index].as_encoded_bytes()[12..].to_vec(),
+                    )));
+                }
+            } else if matches!(
+                value.as_ref(),
+                "--output"
+                    | "-o"
+                    | "--max-angle"
+                    | "--min-line-percent"
+                    | "--min-line-pixels"
+                    | "--analysis-size"
+                    | "--resample"
+                    | "--merge-angle"
+                    | "--merge-distance-percent"
+                    | "--merge-distance-pixels"
+                    | "--merge-gap-percent"
+                    | "--merge-gap-pixels"
+            ) {
+                index += 1;
+            }
+            index += 1;
+        }
+        (lang, file)
+    }
+
+    pub fn load_language(args: &[OsString]) -> Result<I18n, LocalizedMessage> {
+        let (locale, file) = Self::bootstrap(args);
+        let selected = match (&locale, &file) {
+            (Some(locale), _) => locale.clone(),
+            (None, Some(path)) => I18n::from_language_file(path)?.selected_locale().to_owned(),
+            _ => "zh-CN".into(),
+        };
+        let mut options = LoadOptions::discovered();
+        options.language_file = file;
+        let service = I18n::load(&selected, &options)?;
+        if !service.has_locale(&selected) {
+            return Err(LocalizedMessage::new("i18n.error.unavailable_locale")
+                .with_param("locale", selected));
+        }
+        Ok(service)
+    }
+
+    pub fn localized_command(i18n: &I18n) -> clap::Command {
+        let mut cmd = Self::command()
+            .about(i18n.translate("cli.about"))
+            .disable_help_flag(true)
+            .disable_version_flag(true)
+            .help_template(format!(
+                "{{about}}\n\n{} {{usage}}\n\n{{all-args}}",
+                i18n.translate("cli.usage")
+            ))
+            .arg(
+                clap::Arg::new("help")
+                    .short('h')
+                    .long("help")
+                    .action(clap::ArgAction::Help)
+                    .help(i18n.translate("cli.help.help")),
+            )
+            .arg(
+                clap::Arg::new("version")
+                    .short('V')
+                    .long("version")
+                    .action(clap::ArgAction::Version)
+                    .help(i18n.translate("cli.help.version")),
+            );
+        let ids: Vec<_> = cmd
+            .get_arguments()
+            .map(|a| a.get_id().to_string())
+            .collect();
+        for id in ids {
+            let heading = if id == "folder" {
+                "cli.arguments"
+            } else {
+                "cli.options"
+            };
+            cmd = cmd.mut_arg(&id, |a| a.help_heading(i18n.translate(heading)));
+            if id != "help" && id != "version" {
+                cmd = cmd.mut_arg(&id, |a| a.help(i18n.translate(&format!("cli.help.{id}"))));
+            }
+        }
+        cmd
+    }
+
+    pub fn parse_localized(args: &[OsString], i18n: &I18n) -> Result<Self, clap::Error> {
+        let matches = Self::localized_command(i18n).try_get_matches_from(args)?;
+        Self::from_arg_matches(&matches)
+    }
+
+    pub fn error_text(error: &clap::Error, i18n: &I18n) -> String {
+        use clap::error::{ContextKind as C, ErrorKind as E};
+        if matches!(error.kind(), E::DisplayHelp | E::DisplayVersion) {
+            return error.to_string();
+        }
+        let get = |kind| error.get(kind).map(ToString::to_string).unwrap_or_default();
+        let key = match error.kind() {
+            E::UnknownArgument => "cli.error.unknown_argument",
+            E::MissingRequiredArgument => "cli.error.missing_required",
+            E::InvalidValue | E::ValueValidation => "cli.error.invalid_value",
+            E::ArgumentConflict => "cli.error.conflict",
+            E::TooFewValues | E::WrongNumberOfValues | E::TooManyValues => {
+                "cli.error.missing_value"
+            }
+            _ => "cli.error.invalid_arguments",
+        };
+        let custom = get(C::Custom);
+        let message = if !custom.is_empty() {
+            custom
+        } else {
+            i18n.translate_message(
+                &LocalizedMessage::new(key)
+                    .with_param("argument", get(C::InvalidArg))
+                    .with_param("value", get(C::InvalidValue))
+                    .with_param("other", get(C::PriorArg)),
+            )
+        };
+        format!(
+            "{}: {}\n\n{} {}\n\n{}\n",
+            i18n.translate("app.error_prefix"),
+            message,
+            i18n.translate("cli.usage"),
+            Self::localized_command(i18n)
+                .render_usage()
+                .to_string()
+                .trim_start_matches("Usage: "),
+            i18n.translate("cli.help_hint")
+        )
     }
     pub fn batch_options(
         &self,

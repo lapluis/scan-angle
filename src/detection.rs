@@ -1,9 +1,90 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use crate::i18n::{I18n, LocalizedMessage};
 
 pub const RESAMPLES: [&str; 6] = [
     "lanczos", "bicubic", "bilinear", "nearest", "box", "hamming",
 ];
+
+/// Stable classification of a detection result.
+///
+/// The Serde representation keeps the original Chinese strings so exported
+/// JSON and existing goldens stay unchanged. [`fmt::Display`] likewise renders
+/// the legacy Chinese text, while [`Status::render`] translates through an
+/// [`I18n`] service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Status {
+    #[serde(rename = "可信")]
+    Trusted,
+    #[serde(rename = "需人工确认")]
+    NeedsReview,
+    #[serde(rename = "读取失败")]
+    ReadFailed,
+}
+
+impl Status {
+    /// Catalog key for this status.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Trusted => "status.trusted",
+            Self::NeedsReview => "status.needs_review",
+            Self::ReadFailed => "status.read_failed",
+        }
+    }
+
+    /// Render this status in the language selected by `i18n`.
+    pub fn render(self, i18n: &I18n) -> String {
+        i18n.translate(self.key())
+    }
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        LocalizedMessage::new(self.key()).fmt(formatter)
+    }
+}
+
+/// Stable reason attached to a detection result.
+///
+/// Like [`Status`], Serde keeps the original Chinese text and `Display`
+/// renders the legacy Chinese default, while [`DetectionReason::render`]
+/// translates through an [`I18n`] service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DetectionReason {
+    #[serde(rename = "没有足够的长直线；圆形、无边框或低对比图片可能无法判断")]
+    NoLongLines,
+    #[serde(rename = "多条分离直线方向一致")]
+    Consistent,
+    #[serde(rename = "直线证据不足或方向存在冲突；请核对预览")]
+    Insufficient,
+    #[serde(rename = "角度接近检测范围上限；建议扩大范围复核")]
+    NearLimit,
+}
+
+impl DetectionReason {
+    /// Catalog key for this reason.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoLongLines => "detection.reason.no_long_lines",
+            Self::Consistent => "detection.reason.consistent",
+            Self::Insufficient => "detection.reason.insufficient",
+            Self::NearLimit => "detection.reason.near_limit",
+        }
+    }
+
+    /// Render this reason in the language selected by `i18n`.
+    pub fn render(self, i18n: &I18n) -> String {
+        i18n.translate(self.key())
+    }
+}
+
+impl fmt::Display for DetectionReason {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        LocalizedMessage::new(self.key()).fmt(formatter)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -80,14 +161,19 @@ impl DetectionSettings {
             ),
         ] {
             if !value.is_finite() || !valid {
-                bail!("{name} 必须是有效范围内的有限数值");
+                bail!(
+                    LocalizedMessage::new("settings.error.finite_range").with_param("name", name)
+                );
             }
         }
         if !(256..=10000).contains(&self.analysis_size) {
-            bail!("analysis_size 必须在 256～10000 之间");
+            bail!(LocalizedMessage::new("settings.error.analysis_size_range"));
         }
         if !RESAMPLES.contains(&self.resample.trim().to_lowercase().as_str()) {
-            bail!("resample 必须是 {}", RESAMPLES.join("/"));
+            bail!(
+                LocalizedMessage::new("settings.error.resample_choice")
+                    .with_param("choices", RESAMPLES.join("/"))
+            );
         }
         Ok(())
     }
@@ -304,7 +390,7 @@ pub fn merge_collinear_segments(
         || !gap.is_finite()
         || gap < 0.
     {
-        bail!("无效的合并容差");
+        bail!(LocalizedMessage::new("settings.error.merge_tolerance"));
     }
     let mut pending: Vec<_> = segments.iter().filter_map(|&c| Fragment::new(c)).collect();
     pending.sort_by(|a, b| {
@@ -384,10 +470,10 @@ pub struct MergeDiagnostics {
 pub struct Estimate {
     pub angle: Option<f64>,
     pub correction: Option<f64>,
-    pub status: String,
+    pub status: Status,
     pub count: usize,
     pub spread: Option<f64>,
-    pub reason: String,
+    pub reason: DetectionReason,
     pub fragment_count: usize,
     pub merged_count: usize,
     pub merged_lines: Vec<Line>,
@@ -452,10 +538,10 @@ pub fn estimate_segments(
     let mut result = Estimate {
         angle: None,
         correction: None,
-        status: "需人工确认".into(),
+        status: Status::NeedsReview,
         count: 0,
         spread: None,
-        reason: "没有足够的长直线；圆形、无边框或低对比图片可能无法判断".into(),
+        reason: DetectionReason::NoLongLines,
         fragment_count: fragments.len(),
         merged_count: merged.len(),
         thresholds_px: Thresholds {
@@ -530,16 +616,19 @@ pub fn estimate_segments(
     }
     let trusted =
         groups.len() >= 2 && support >= short * 0.7 && support / total >= 0.65 && spread < 0.18;
-    result.status = if trusted { "可信" } else { "需人工确认" }.into();
-    result.reason = if trusted {
-        "多条分离直线方向一致"
+    result.status = if trusted {
+        Status::Trusted
     } else {
-        "直线证据不足或方向存在冲突；请核对预览"
-    }
-    .into();
+        Status::NeedsReview
+    };
+    result.reason = if trusted {
+        DetectionReason::Consistent
+    } else {
+        DetectionReason::Insufficient
+    };
     if angle.abs() > s.max_angle - 0.3 {
-        result.status = "需人工确认".into();
-        result.reason = "角度接近检测范围上限；建议扩大范围复核".into();
+        result.status = Status::NeedsReview;
+        result.reason = DetectionReason::NearLimit;
     }
     result.angle = Some(round(angle, 3));
     result.correction = Some(round(-angle, 3));
@@ -605,7 +694,69 @@ mod tests {
         assert_eq!(s.merge_tolerances(1000, 4000), (0., 0.));
         assert_eq!(s.min_length(4000, 1000, Orientation::Horizontal), 100.);
         assert_eq!(s.min_length(4000, 1000, Orientation::Vertical), 400.);
+
+        let error = DetectionSettings {
+            max_angle: f64::NAN,
+            ..DetectionSettings::default()
+        }
+        .validate()
+        .unwrap_err();
+        assert_eq!(error.to_string(), "max_angle 必须是有效范围内的有限数值");
     }
+    #[test]
+    fn status_and_reason_keep_legacy_export_values_and_translate() {
+        for (status, legacy, translated) in [
+            (Status::Trusted, "可信", "Trusted"),
+            (Status::NeedsReview, "需人工确认", "Needs review"),
+            (Status::ReadFailed, "读取失败", "Read failed"),
+        ] {
+            assert_eq!(status.to_string(), legacy);
+            assert_eq!(serde_json::to_value(status).unwrap(), legacy);
+            assert_eq!(
+                serde_json::from_value::<Status>(serde_json::json!(legacy)).unwrap(),
+                status
+            );
+            let chinese = I18n::default();
+            assert_eq!(status.render(&chinese), legacy);
+            let english = chinese.select("en-US").unwrap();
+            assert_eq!(status.render(&english), translated);
+        }
+
+        for (reason, legacy, translated) in [
+            (
+                DetectionReason::NoLongLines,
+                "没有足够的长直线；圆形、无边框或低对比图片可能无法判断",
+                "Not enough long straight lines; circular, borderless, or low-contrast images may be undecidable",
+            ),
+            (
+                DetectionReason::Consistent,
+                "多条分离直线方向一致",
+                "Multiple separated lines agree on the direction",
+            ),
+            (
+                DetectionReason::Insufficient,
+                "直线证据不足或方向存在冲突；请核对预览",
+                "Insufficient line evidence or conflicting directions; check the preview",
+            ),
+            (
+                DetectionReason::NearLimit,
+                "角度接近检测范围上限；建议扩大范围复核",
+                "The angle is close to the detection limit; consider widening the range",
+            ),
+        ] {
+            assert_eq!(reason.to_string(), legacy);
+            assert_eq!(serde_json::to_value(reason).unwrap(), legacy);
+            assert_eq!(
+                serde_json::from_value::<DetectionReason>(serde_json::json!(legacy)).unwrap(),
+                reason
+            );
+            let chinese = I18n::default();
+            assert_eq!(reason.render(&chinese), legacy);
+            let english = chinese.select("en-US").unwrap();
+            assert_eq!(reason.render(&english), translated);
+        }
+    }
+
     #[test]
     fn directional_filter_and_diagnostics() {
         let s = DetectionSettings::default();
