@@ -1,45 +1,119 @@
-# scan-angle Rust 版
+# scan-angle
 
-扫描图片偏角批量检测工具。根据纸张边缘、边框或其他长直线估算倾斜角度，输出 CSV 和红色标线预览。所有处理在本地进行，原图不会被修改。
+本地批量检测扫描图片偏角的工具。根据纸张边缘、边框或其他长直线估算倾斜角度，给出转正建议，并输出终端表格、CSV/JSON 结果和红色标线预览。所有处理在本地完成，原图不会被修改。
+
+Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全不依赖窗口组件的命令行版本。
+
+## 目录
+
+- [功能](#功能)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [命令行选项](#命令行选项)
+- [输出与结果](#输出与结果)
+- [直线合并](#直线合并)
+- [方法和限制](#方法和限制)
+- [开发](#开发)
+- [相关文档](#相关文档)
 
 ## 功能
 
-- 窗口界面与命令行两种入口。
-- 命令行支持对齐表格或 `--json` 输出，JSON 结构与 `details.json` 相同。
+- 窗口界面与命令行两种入口；命令行支持对齐表格和 `--json` 输出。
 - 支持 TIFF（含多页）、PNG、JPEG、BMP、WebP。
 - 支持遍历子文件夹，损坏图片记录失败后继续处理。目录列表无法读取时整批报错，避免将不完整扫描标记为完成。
 - 窗口进度条按已处理文件数推进，显示“已处理 / 总数”；多页 TIFF 按一个文件计，读取失败文件也计入已处理数。
-- 每页输出偏差角、建议转正角、证据一致性状态和标线预览。
+- 每页输出偏差角、建议转正角、证据一致性状态；保存结果时额外生成标线预览。
 - 默认检测 ±15°，可调整到 ±30°。
 - 先合并共线短线段，再按方向相关的可配置最短直线阈值筛选（水平线相对分析图宽度，竖直线相对分析图高度），因此虚线、断线中单独较短的片段也可能组成有效长线。
 - 可配置分析图最长边和缩放算法；默认不放大原图。
 - 合并的角度差、垂直距离和间隙容差均可配置，距离与间隙同时支持“短边百分比 + 绝对像素下限”。
 
-## 开发运行
+## 环境要求
 
-当前应用为 Rust 实现；旧 Python 版可从 Git 历史查看。运行时不需要 Python、uv 或 OpenCV。安装 Rust stable（最低 1.88）和 Windows MSVC C++ 构建工具，然后运行：
+- **运行预编译程序**：Windows x64 可执行文件，不需要 Python、uv、OpenCV 或其他运行时。
+- **从源码构建**：Rust stable 1.88 或更高；Windows 构建还需要 MSVC C++ 构建工具（CI 在 Windows 上验证）。
+- **生成测试图片**：需要 Python 3.14 和 uv；仅在开发测试时使用，运行应用本身不需要。
+
+## 快速开始
+
+### 获取程序
+
+仓库目前没有 GitHub Release 或 tag。CI 在每次 push/PR 时执行测试和 Release 构建，并保存 Windows x64 可执行文件：
+
+1. 打开 [Tests 工作流](https://github.com/lapluis/scan-angle/actions/workflows/tests.yml) 最近一次成功的运行。
+2. 下载 Artifact `ScanAngle-Rust-windows-x64`，解压得到 `scan-angle.exe`。
+
+也可以从源码构建：
 
 ```powershell
-cargo run --locked --release
-cargo run --locked --release -- "D:\workspace\images"
-cargo run --locked --release -- "D:\workspace\images" --output ".\results\images"
+cargo build --locked --release
 ```
 
-不带输入文件夹时打开窗口，所有命令行设置会初始化对应控件。带输入文件夹时执行批处理：指定 `--output` 会写入该目录；省略 `--output` 则只在终端打印每页结果，不创建任何输出目录或文件。添加 `--json` 时改为在标准输出打印 JSON 数组（结构与 `details.json` 相同），不打印表格；与 `--output` 同时使用时仍会写入 CSV、JSON 和预览文件。
+生成 `target\release\scan-angle.exe`。构建直接使用 Cargo，不需要 Python、uv 或额外编译脚本。
+
+### 窗口模式
+
+直接运行 `scan-angle.exe`（不带参数）打开窗口。命令行传入的设置会初始化对应控件；选择输入文件夹后，输出文件夹会自动填入输入目录旁的 `<目录名>_角度结果`。
+
+### 命令行模式
 
 ```powershell
-cargo run --locked --release -- --min-line-percent 25 --analysis-size 1600 --resample bilinear
+# 省略 --output：只在终端打印表格，不创建任何文件
+.\target\release\scan-angle.exe "D:\workspace\images"
+
+# 保存 CSV、details.json 和预览图
+.\target\release\scan-angle.exe "D:\workspace\images" --output ".\results\images"
+
+# 以 JSON 输出到 stdout，不打印表格；加 --output 时仍会写文件
+.\target\release\scan-angle.exe "D:\workspace\images" --json
+
+# 包含子目录并调整检测设置
+.\target\release\scan-angle.exe "D:\workspace\images" --recursive --output ".\results\images" --max-angle 20 --analysis-size 1600
 ```
 
-添加 `--recursive` 可包含子目录。超过 178,956,970 像素的可信本地图片须显式添加 `--allow-large-images`，窗口也提供对应选项。
+带输入文件夹时执行批处理。命令行省略 `--output` 时，终端以对齐表格逐页显示文件、页码、转正角度、检测 / 合并 / 入选直线数和状态；不会创建输出目录、CSV、JSON 或预览图。
 
-```powershell
-cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-distance-percent 0.2 --merge-distance-pixels 2 --merge-gap-percent 1 --merge-gap-pixels 8
+终端输出示例：
+
+```text
+文件          页  转正角度（°）  检测 / 合并 / 入选  状态
+angle_-2.png   1         +2.000           8 / 8 / 8  可信
+blank.png      1              —           0 / 0 / 0  需人工确认
+broken.png     —              —           — / — / —  读取失败
 ```
 
-主要模块：`detection.rs` 实现设置、几何合并和角度共识；`imaging.rs` / `resample.rs` 负责图片和六种缩放滤镜；`batch.rs` 写报告和预览；`cli.rs` / `gui.rs` 提供命令行和窗口入口。`Cargo.lock` 纳入版本控制，构建和测试均使用 `--locked`。
+`--json` 输出一个数组，每个文件/页对应一项，结构与写入文件的 `details.json` 相同。以下为字段节选（省略 `lines`、`merged_lines`、`merge`、`settings` 等字段）：
 
-## 检测设置
+```json
+[
+  {
+    "angle": -2.0,
+    "correction": 2.0,
+    "count": 8,
+    "file": "angle_-2.png",
+    "fragment_count": 8,
+    "merged_count": 8,
+    "page": 1,
+    "status": "可信"
+  }
+]
+```
+
+超过 178,956,970 像素的可信本地图片须显式添加 `--allow-large-images`，窗口也提供对应选项。
+
+## 命令行选项
+
+| 参数 | 说明 |
+| --- | --- |
+| `[FOLDER]` | 输入图片文件夹。GUI 构建省略时打开窗口；无 GUI 构建必须提供。 |
+| `-o, --output <DIR>` | 输出目录。省略时结果只打印到终端，不写入任何文件。 |
+| `-r, --recursive` | 递归包含子目录。 |
+| `--allow-large-images` | 允许处理超过 178,956,970 像素的可信本地扫描图。 |
+| `--json` | 以 JSON 格式输出检测结果到 stdout，结构与 `details.json` 相同；需要同时提供 `FOLDER`。 |
+| `-h, --help` | 显示帮助。 |
+| `-V, --version` | 显示版本。 |
+
+### 检测设置
 
 | 设置 | CLI | 默认 | 校验／说明 |
 | --- | --- | --- | --- |
@@ -80,7 +154,21 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 
 **零容差语义：** `merge_distance_percent` 与 `merge_distance_pixels` 同时为 0 时，有效距离容差为 0，只有两个端点都**精确**落在锚定直线上的片段才会合并；`merge_gap_percent` 与 `merge_gap_pixels` 同时为 0 时，有效间隙容差为 0，投影区间必须重叠或恰好相接，任何正间隙都会把链拆开。代码不会用 epsilon 把 0 悄悄替换成非零容差。角度容差则必须严格大于 0 且小于 45 度，0 和 45 都会被拒绝。
 
-## 结果说明
+## 输出与结果
+
+### 终端表格
+
+命令行省略 `--output` 时，只输出对齐表格，不写文件。列为：文件、页、转正角度（°）、检测 / 合并 / 入选、状态。
+
+- “转正角度”与偏差角度符号相反；正数表示顺时针。
+- “检测 / 合并 / 入选”依次为进入合并的线段数（`fragment_count`）、最短长度筛选前的合并直线总数（`merged_count`）、最终参与角度估算的直线数（`count`）。
+- 读取失败时显示 `—`、`— / — / —` 和“读取失败”。
+
+### JSON 输出
+
+`--json` 在 stdout 打印 JSON 数组，结构与 `details.json` 相同；每条记录包含检测结果、合并诊断信息和设置。它不会打印表格，也不会在未指定 `--output` 时写文件。
+
+### 写入文件
 
 指定 `--output` 或使用窗口保存结果时，输出目录中包括：
 
@@ -110,7 +198,7 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 
 每次运行会覆盖所选输出目录中的 CSV、JSON 和同名预览。建议不同批次使用独立输出目录。输出目录不能与输入目录相同，也不能是输入目录的上级目录；输入目录内的输出子目录会自动排除。
 
-命令行省略 `--output` 时不会创建任何文件，也不会生成预览图；终端以表格逐页显示文件、页码、转正角度、检测 / 合并 / 入选直线数和状态，除用转正角度替代偏差角度外，列与窗口结果表一致。窗口界面不受影响：选择输入文件夹后仍会自动填入输入目录旁的 `<目录名>_角度结果`，并将结果写入该目录。
+窗口界面不受“省略 `--output`”规则影响：选择输入文件夹后仍会自动填入输入目录旁的 `<目录名>_角度结果`，并将结果写入该目录。
 
 ## 直线合并
 
@@ -135,13 +223,13 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 - 重叠片段不会重复计权；
 - 片段之间的大间隙不会被当作已观测证据；
 - 单个片段都短于阈值时，只有合并后的实际支撑长度达到阈值才会入选；
-- 窄边方向的直线不会因为另一方向很长而被过高阈值错误淘汰，宽边方向的直线也不会被过低阈值误收。
+- 窄边方向的直线不会因为另一方向很长而被过高阈值错误淘汰，宽边方向的直线也不会因为过低阈值误收。
 
 超过间隙容差的两段不会合并，也不会为了凑长度而填满中间空白。
 
 ## 方法和限制
 
-图片先按 EXIF 方向归一化，再按所选算法缩小为最长边不超过分析图设置的分析图（不放大）。使用 纯 Rust lsdetect 直线段检测器提取线段；排除图像边框后，按水平和竖直方向分别合并共线片段，再按方向相关的最短长度和最大偏角筛选。最后按支撑长度加权寻找一致角度簇并计算加权中位数，结合空间上分离的直线数量、角度离散和竞争方向标记结果状态。
+图片先按 EXIF 方向归一化，再按所选算法缩小为最长边不超过分析图设置的分析图（不放大）。使用纯 Rust lsdetect 直线段检测器提取线段；排除图像边框后，按水平和竖直方向分别合并共线片段，再按方向相关的最短长度和最大偏角筛选。最后按支撑长度加权寻找一致角度簇并计算加权中位数，结合空间上分离的直线数量、角度离散和竞争方向标记结果状态。
 
 适合纸边、边框、表格线较清楚的扫描图。圆形光盘、无直线插画、浅色边缘、弯曲或透视变形可能无法可靠判断。画面内容中的设计斜线也可能影响结果，应核对预览。
 
@@ -154,7 +242,21 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 
 当前版本只检测偏角，不执行图像转正，不判断文字的 90°/180° 正反方向，也不做透视矫正，不自动旋转。
 
-## 测试
+## 开发
+
+### 模块结构
+
+- `detection.rs`：检测设置、线段合并和角度共识。
+- `imaging.rs` / `resample.rs`：图片读取、分析图缩放和六种缩放滤镜。
+- `batch.rs`：批量遍历、逐页处理、CSV/JSON 报告和预览输出。
+- `report.rs`：命令行结果表格的列宽计算与对齐。
+- `cli.rs` / `gui.rs`：命令行和窗口入口。
+- `main.rs`：GUI/批处理分发和命令行输出。
+- `multiframe.rs`：APNG 默认帧和 MPF JPEG 的元数据发现。
+- `wic.rs`：Windows 内置 TIFF 编解码回退。
+- `Cargo.lock` 纳入版本控制，构建和测试均使用 `--locked`。
+
+### 测试
 
 ```powershell
 uv run --locked scripts/generate-fixtures.py
@@ -167,9 +269,9 @@ cargo test --locked
 
 回归样本来自原 Python 版的合成测试：120 组合并基准、24 组检测管线基准、11 张已知角度／断线／空白／圆形图，以及 30 个格式与 EXIF 样本。合并与检测管线逐字段对照；独立 LSD 实现允许细微线段差异，合成图角度误差须在原测试的 0.12° 内，分类须一致。测试还覆盖全部参数、GUI 初始化、非法输入、递归输出排除、逐文件进度、逐页失败记录、CSV BOM 和 JSON 结构。测试仅使用合成图片，不访问用户扫描文件或网络。
 
-算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 `docs/rust-migration.md`。如需原 Python 版，请查看迁移前的 Git 历史。
+算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 [docs/rust-migration.md](docs/rust-migration.md)。
 
-## 无 GUI（命令行）版本
+### 无 GUI 构建
 
 默认构建同时包含窗口和命令行。若只需批处理（例如服务器、计划任务或 CI 环境），关闭默认的 `gui` 特性即可构建完全不链接窗口组件的版本：
 
@@ -188,7 +290,7 @@ cargo build --locked --release --no-default-features
 
 对应的测试命令为 `cargo test --locked --no-default-features`。需要窗口界面时仍使用默认构建（不带 `--no-default-features`）。
 
-## Windows 构建
+### Windows 构建
 
 ```powershell
 cargo build --locked
@@ -196,4 +298,10 @@ cargo build --locked
 cargo build --locked --release
 ```
 
-分别生成 `target/debug/scan-angle.exe` 和 `target/release/scan-angle.exe`。双击打开窗口，带输入目录则批处理。构建直接使用 Cargo，不需要 Python、uv 或额外编译脚本；运行测试前才需要生成测试图片。构建产物不纳入 Git。GitHub Actions 在 Windows 上执行测试和 Release 构建并保存可执行文件 artifact。
+分别生成 `target/debug/scan-angle.exe` 和 `target/release/scan-angle.exe`。双击打开窗口，带输入目录则批处理。构建产物不纳入 Git。GitHub Actions 在 Windows 上执行测试和 Release 构建并保存可执行文件 artifact。
+
+## 相关文档
+
+- [docs/rust-migration.md](docs/rust-migration.md)：Rust 迁移过程、验证记录和测试语料说明。
+- [docs/rust-port.md](docs/rust-port.md)：文档入口。
+- [examples/detector_check.rs](examples/detector_check.rs)：针对检测器线段输出的检查示例。
