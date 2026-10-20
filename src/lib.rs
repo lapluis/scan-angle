@@ -7,3 +7,5 @@ pub mod resample;
 
 #[cfg(windows)]
 mod wic;
+
+mod multiframe;

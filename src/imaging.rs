@@ -185,7 +185,8 @@ pub fn visit_frames(
 
     match format {
         ImageFormat::Tiff => visit_tiff(path, reader.into_inner(), allow_large, visitor),
-        ImageFormat::Png => visit_png(reader.into_inner(), allow_large, visitor),
+        ImageFormat::Png => visit_png(path, reader.into_inner(), allow_large, visitor),
+        ImageFormat::Jpeg => visit_jpeg(reader.into_inner(), allow_large, visitor),
         ImageFormat::WebP => visit_webp(reader.into_inner(), allow_large, visitor),
         _ => visit_still(reader, allow_large, visitor),
     }
@@ -221,13 +222,48 @@ fn visit_still<R: BufRead + Seek>(
     Ok(())
 }
 
+fn visit_jpeg(
+    mut reader: BufReader<File>,
+    allow_large: bool,
+    visitor: &mut dyn FnMut(usize, Result<DynamicImage>),
+) -> Result<()> {
+    use std::io::{Cursor, SeekFrom};
+    let entries = crate::multiframe::mpo_entries(&mut reader)?;
+    if entries.len() <= 1 {
+        return visit_still(
+            ImageReader::with_format(reader, ImageFormat::Jpeg),
+            allow_large,
+            visitor,
+        );
+    }
+    for (index, (offset, size)) in entries.into_iter().enumerate() {
+        reader.seek(SeekFrom::Start(offset))?;
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(usize::try_from(size)?)?;
+        Read::by_ref(&mut reader)
+            .take(size)
+            .read_to_end(&mut bytes)?;
+        let result = visit_still(
+            ImageReader::with_format(Cursor::new(bytes), ImageFormat::Jpeg),
+            allow_large,
+            &mut |_, image| visitor(index + 1, image),
+        );
+        if let Err(e) = result {
+            visitor(index + 1, Err(e));
+        }
+    }
+    Ok(())
+}
+
 fn visit_png(
-    reader: BufReader<File>,
+    path: &Path,
+    mut reader: BufReader<File>,
     allow_large: bool,
     visitor: &mut dyn FnMut(usize, Result<DynamicImage>),
 ) -> Result<()> {
     use image::codecs::png::PngDecoder;
 
+    let has_default = crate::multiframe::apng_default(&mut reader)?;
     let mut decoder = PngDecoder::new(reader).map_err(format_error)?;
     let (width, height) = decoder.dimensions();
     if let Err(error) = check_pixel_limit(width, height, allow_large) {
@@ -239,9 +275,14 @@ fn visit_png(
         .unwrap_or(image::metadata::Orientation::NoTransforms);
 
     if decoder.is_apng().map_err(format_error)? {
+        if has_default {
+            let reader =
+                ImageReader::with_format(BufReader::new(File::open(path)?), ImageFormat::Png);
+            visit_still(reader, allow_large, visitor)?;
+        }
         let frames = decoder.apng().map_err(format_error)?.into_frames();
         for (index, frame) in frames.enumerate() {
-            let page = index + 1;
+            let page = index + 1 + usize::from(has_default);
             match frame {
                 Ok(frame) => {
                     let mut image = DynamicImage::ImageRgba8(frame.into_buffer());
@@ -496,7 +537,7 @@ fn gray8_from_packed(width: u32, height: u32, bits: u8, data: Vec<u8>) -> Result
 fn ensure_supported_tiff_color(color: &TiffColorType) -> Result<()> {
     let supported = match *color {
         // Packed 1/2/4-bit gray samples are expanded by gray8_from_packed.
-        TiffColorType::Gray(bits) => (1..=16).contains(&bits),
+        TiffColorType::Gray(bits) => (1..=16).contains(&bits) || bits == 32 || bits == 64,
         TiffColorType::GrayA(bits) => bits == 8 || (9..=16).contains(&bits),
         TiffColorType::RGB(bits) | TiffColorType::RGBA(bits) | TiffColorType::CMYK(bits) => {
             bits == 8 || (9..=16).contains(&bits)
@@ -568,6 +609,94 @@ fn tiff_to_dynamic(
                 let buffer = ImageBuffer::from_raw(width, height, values)
                     .ok_or_else(|| anyhow::anyhow!("TIFF 灰度数据长度与尺寸不符"))?;
                 Ok(DynamicImage::ImageLuma8(buffer))
+            }
+            DecodingResult::U32(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::U64(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::I8(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::I16(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::I32(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::I64(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::F32(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| (v as f64).clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
+            }
+            DecodingResult::F64(values) => {
+                let values = truncate_to(values, pixels, "TIFF 灰度")?;
+                let values: Vec<u8> = values
+                    .into_iter()
+                    .map(|v| v.clamp(0., 255.) as u8)
+                    .collect();
+                Ok(DynamicImage::ImageLuma8(
+                    ImageBuffer::from_raw(width, height, values)
+                        .ok_or_else(|| anyhow::anyhow!("TIFF 灰度尺寸不匹配"))?,
+                ))
             }
             other => bail!(
                 "不支持的 TIFF 灰度采样布局：位深 {bits}，样本类型 {}",

@@ -227,3 +227,41 @@ fn resize_pixels_match_python() {
         );
     }
 }
+
+#[test]
+fn executable_cli_contract() {
+    use std::process::Command;
+    let binary = env!("CARGO_BIN_EXE_scan-angle");
+    let help = Command::new(binary).arg("--help").output().unwrap();
+    assert!(help.status.success());
+    assert!(String::from_utf8_lossy(&help.stdout).contains("--merge-gap-pixels"));
+    let invalid = Command::new(binary)
+        .args(["--max-angle", "NaN"])
+        .output()
+        .unwrap();
+    assert_eq!(invalid.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("--max-angle"));
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("output");
+    let batch = Command::new(binary)
+        .arg(fixture("formats"))
+        .arg("--output")
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(
+        batch.status.success(),
+        "{}",
+        String::from_utf8_lossy(&batch.stderr)
+    );
+    let details: Value =
+        serde_json::from_slice(&fs::read(output.join("details.json")).unwrap()).unwrap();
+    assert!(details.as_array().unwrap().len() >= 30);
+    assert!(
+        details
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|d| d["status"] != "读取失败")
+    );
+}
