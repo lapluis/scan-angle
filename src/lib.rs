@@ -1,6 +1,7 @@
 pub mod batch;
 pub mod cli;
 pub mod detection;
+#[cfg(feature = "gui")]
 pub mod gui;
 pub mod imaging;
 pub mod resample;

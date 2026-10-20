@@ -141,7 +141,7 @@ fn batch_outputs_failures_progress_and_exclusion() {
     fs::copy(fixture("formats/color.bmp"), source.join("nested/a,b.bmp")).unwrap();
     let options = BatchOptions {
         source: source.clone(),
-        destination: dest.clone(),
+        destination: Some(dest.clone()),
         recursive: true,
         settings: DetectionSettings::default(),
         allow_large_images: false,
@@ -179,17 +179,54 @@ fn batch_outputs_failures_progress_and_exclusion() {
         }
     }
     let mut bad = options.clone();
-    bad.destination = source;
+    bad.destination = Some(source);
     assert!(batch::run_batch(&bad, |_| {}).is_err());
-    bad.destination = temp.path().to_owned();
+    bad.destination = Some(temp.path().to_owned());
     let error = batch::run_batch(&bad, |_| {}).unwrap_err().to_string();
     assert!(error.contains("上级目录"), "{error}");
     assert!(!temp.path().join("angles.csv").exists());
     assert!(!temp.path().join("previews").exists());
-    bad.destination = temp.path().join("not-created");
+    let not_created = temp.path().join("not-created");
+    bad.destination = Some(not_created.clone());
     bad.settings.min_line_pixels = f64::NAN;
     assert!(batch::run_batch(&bad, |_| {}).is_err());
-    assert!(!bad.destination.exists());
+    assert!(!not_created.exists());
+}
+
+#[test]
+fn console_mode_writes_no_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("input");
+    fs::create_dir_all(&source).unwrap();
+    fs::copy(fixture("angle_0.png"), source.join("angle.png")).unwrap();
+    fs::write(source.join("broken.png"), b"broken").unwrap();
+    let options = BatchOptions {
+        source: source.clone(),
+        destination: None,
+        recursive: false,
+        settings: DetectionSettings::default(),
+        allow_large_images: false,
+    };
+    let mut logs = Vec::new();
+    let rows = batch::run_batch(&options, |p| {
+        if let Progress::Log(s) = p {
+            logs.push(s);
+        }
+    })
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|r| r.preview.is_empty()));
+    assert!(
+        logs.iter()
+            .any(|s| s.contains("偏差") && s.contains("可信"))
+    );
+    assert!(logs.iter().any(|s| s.contains("读取失败 · ")));
+    let entries: Vec<_> = fs::read_dir(temp.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert_eq!(entries, vec![source]);
+    assert!(!temp.path().join("input_角度结果").exists());
 }
 #[test]
 fn all_filters_and_no_upscaling() {
@@ -275,4 +312,33 @@ fn executable_cli_contract() {
             .iter()
             .all(|d| d["status"] != "读取失败")
     );
+}
+
+#[test]
+fn executable_console_only_without_output() {
+    use std::process::Command;
+    let binary = env!("CARGO_BIN_EXE_scan-angle");
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("input");
+    fs::create_dir_all(&source).unwrap();
+    fs::copy(fixture("angle_0.png"), source.join("angle.png")).unwrap();
+    let run = Command::new(binary).arg(&source).output().unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    assert!(stdout.contains("未指定 --output"), "{stdout}");
+    assert!(stdout.contains("angle.png"), "{stdout}");
+    assert!(
+        stdout.contains("偏差") && stdout.contains("可信"),
+        "{stdout}"
+    );
+    let entries: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert_eq!(entries, vec![source]);
+    assert!(!dir.path().join("input_角度结果").exists());
 }

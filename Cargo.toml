@@ -5,6 +5,12 @@ edition = "2024"
 rust-version = "1.88"
 description = "Local batch skew-angle detection for scanned images"
 
+[features]
+default = ["gui"]
+# 关闭该特性可构建完全不链接窗口组件的命令行版本：
+#   cargo build --locked --release --no-default-features
+gui = ["dep:eframe", "dep:rfd", "dep:open", "windows/Win32_System_Console"]
+
 [dependencies]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
@@ -17,12 +23,12 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 walkdir = "2"
 dunce = "1"
-eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
-rfd = "0.15"
-open = "5"
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
+rfd = { version = "0.15", optional = true }
+open = { version = "5", optional = true }
 
 [dev-dependencies]
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_System_Console", "Win32_Foundation", "Win32_Storage_FileSystem"] }
+windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_Foundation", "Win32_Storage_FileSystem"] }

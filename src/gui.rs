@@ -86,7 +86,7 @@ impl Form {
         }
         Ok(BatchOptions {
             source: PathBuf::from(self.source.trim()),
-            destination: PathBuf::from(self.destination.trim()),
+            destination: Some(PathBuf::from(self.destination.trim())),
             recursive: self.recursive,
             settings,
             allow_large_images: self.allow_large,

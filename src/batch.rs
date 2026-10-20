@@ -41,7 +41,8 @@ pub enum Progress {
 #[derive(Debug, Clone)]
 pub struct BatchOptions {
     pub source: PathBuf,
-    pub destination: PathBuf,
+    /// `None` 表示只在命令行报告结果，不写入任何文件。
+    pub destination: Option<PathBuf>,
     pub recursive: bool,
     pub settings: DetectionSettings,
     pub allow_large_images: bool,
@@ -104,17 +105,22 @@ fn process_page(
     path: &Path,
     index: usize,
     image: image::DynamicImage,
-    destination: &Path,
+    destination: Option<&Path>,
     s: &DetectionSettings,
 ) -> Result<(Row, Value)> {
     let (result, small, lines) = imaging::estimate(&image, s)?;
-    let preview = imaging::draw_preview(&small, &result.merged_lines, &lines);
-    let name = format!(
-        "{index:05}_{}_p{page}.jpg",
-        path.file_stem().unwrap_or_default().to_string_lossy()
-    );
-    let writer = BufWriter::new(File::create(destination.join("previews").join(&name))?);
-    image::codecs::jpeg::JpegEncoder::new_with_quality(writer, 90).encode_image(&preview)?;
+    let preview = if let Some(destination) = destination {
+        let preview = imaging::draw_preview(&small, &result.merged_lines, &lines);
+        let name = format!(
+            "{index:05}_{}_p{page}.jpg",
+            path.file_stem().unwrap_or_default().to_string_lossy()
+        );
+        let writer = BufWriter::new(File::create(destination.join("previews").join(&name))?);
+        image::codecs::jpeg::JpegEncoder::new_with_quality(writer, 90).encode_image(&preview)?;
+        format!("previews/{name}")
+    } else {
+        String::new()
+    };
     let row = Row {
         file: file.into(),
         page: Some(page),
@@ -124,7 +130,7 @@ fn process_page(
         count: result.count,
         spread: result.spread,
         reason: result.reason.clone(),
-        preview: format!("previews/{name}"),
+        preview,
         fragment_count: Some(result.fragment_count),
         merged_count: Some(result.merged_count),
     };
@@ -142,28 +148,38 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
     if !source.is_dir() {
         bail!("输入文件夹不存在");
     }
-    // Canonicalize existing aliases before creating output, including junctions.
-    if let Ok(dest) = dunce::canonicalize(&options.destination)
-        && same_path(&source, &dest)
-    {
-        bail!("输出文件夹必须与输入文件夹不同");
-    }
-    fs::create_dir_all(&options.destination)?;
-    let destination = dunce::canonicalize(&options.destination)?;
-    if same_path(&source, &destination) {
-        bail!("输出文件夹必须与输入文件夹不同");
-    }
-    if inside(&source, &destination) {
-        bail!("输出文件夹不能是输入文件夹的上级目录");
-    }
-    fs::create_dir_all(destination.join("previews"))?;
+    let destination = match &options.destination {
+        Some(destination) => {
+            // Canonicalize existing aliases before creating output, including junctions.
+            if let Ok(dest) = dunce::canonicalize(destination)
+                && same_path(&source, &dest)
+            {
+                bail!("输出文件夹必须与输入文件夹不同");
+            }
+            fs::create_dir_all(destination)?;
+            let destination = dunce::canonicalize(destination)?;
+            if same_path(&source, &destination) {
+                bail!("输出文件夹必须与输入文件夹不同");
+            }
+            if inside(&source, &destination) {
+                bail!("输出文件夹不能是输入文件夹的上级目录");
+            }
+            fs::create_dir_all(destination.join("previews"))?;
+            Some(destination)
+        }
+        None => None,
+    };
     let depth = if options.recursive { usize::MAX } else { 1 };
     let mut files = Vec::new();
     for entry in walkdir::WalkDir::new(&source)
         .max_depth(depth)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|e| !inside(e.path(), &destination))
+        .filter_entry(|e| {
+            destination
+                .as_deref()
+                .is_none_or(|destination| !inside(e.path(), destination))
+        })
     {
         let entry = entry?;
         let path = entry.path();
@@ -207,50 +223,60 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
                     path,
                     index + 1,
                     image,
-                    &destination,
+                    destination.as_deref(),
                     &options.settings,
                 )
             });
             let (row, detail) =
                 item.unwrap_or_else(|error| failure(&file, Some(page), error, &options.settings));
-            progress(Progress::Log(format!(
-                "  第 {page} 页: {}° · {}",
-                row.angle.map_or("None".into(), |x| x.to_string()),
-                row.status
-            )));
+            let log = match (row.angle, row.correction) {
+                (Some(angle), Some(correction)) => format!(
+                    "  第 {page} 页: 偏差 {angle:.3}° · 转正 {correction:.3}° · {} · 直线 {}",
+                    row.status, row.count
+                ),
+                _ => format!("  第 {page} 页: {} · {}", row.status, row.reason),
+            };
+            progress(Progress::Log(log));
             rows.push(row);
-            details.push(detail);
+            if destination.is_some() {
+                details.push(detail);
+            }
         });
         if let Err(error) = result {
             let (row, detail) = failure(&file, None, error, &options.settings);
+            progress(Progress::Log(format!("  读取失败 · {}", row.reason)));
             rows.push(row);
-            details.push(detail);
+            if destination.is_some() {
+                details.push(detail);
+            }
         }
         progress(Progress::Files(index + 1, files.len()));
     }
-    let mut file = BufWriter::new(File::create(destination.join("angles.csv"))?);
-    file.write_all(&[0xef, 0xbb, 0xbf])?;
-    let mut writer = csv::WriterBuilder::new()
-        .terminator(csv::Terminator::CRLF)
-        .from_writer(file);
-    writer.write_record(FIELDS)?;
-    for r in &rows {
-        writer.write_record([
-            r.file.clone(),
-            r.page.map_or(String::new(), |x| x.to_string()),
-            r.angle.map_or(String::new(), float_text),
-            r.correction.map_or(String::new(), float_text),
-            r.status.clone(),
-            r.count.to_string(),
-            r.spread.map_or(String::new(), float_text),
-            r.reason.clone(),
-            r.preview.clone(),
-        ])?;
+    if let Some(destination) = &destination {
+        let mut file = BufWriter::new(File::create(destination.join("angles.csv"))?);
+        file.write_all(&[0xef, 0xbb, 0xbf])?;
+        let mut writer = csv::WriterBuilder::new()
+            .terminator(csv::Terminator::CRLF)
+            .from_writer(file);
+        writer.write_record(FIELDS)?;
+        for r in &rows {
+            writer.write_record([
+                r.file.clone(),
+                r.page.map_or(String::new(), |x| x.to_string()),
+                r.angle.map_or(String::new(), float_text),
+                r.correction.map_or(String::new(), float_text),
+                r.status.clone(),
+                r.count.to_string(),
+                r.spread.map_or(String::new(), float_text),
+                r.reason.clone(),
+                r.preview.clone(),
+            ])?;
+        }
+        writer.flush()?;
+        let mut writer = BufWriter::new(File::create(destination.join("details.json"))?);
+        serde_json::to_writer_pretty(&mut writer, &details)?;
+        writer.flush()?;
     }
-    writer.flush()?;
-    let mut writer = BufWriter::new(File::create(destination.join("details.json"))?);
-    serde_json::to_writer_pretty(&mut writer, &details)?;
-    writer.flush()?;
     Ok(rows)
 }
 fn float_text(n: f64) -> String {

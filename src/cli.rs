@@ -1,7 +1,4 @@
-use crate::{
-    batch::{BatchOptions, default_output},
-    detection::DetectionSettings,
-};
+use crate::{batch::BatchOptions, detection::DetectionSettings};
 use clap::{CommandFactory, Parser};
 use std::path::PathBuf;
 
@@ -86,10 +83,7 @@ impl Cli {
             .map(|source| {
                 Ok(BatchOptions {
                     source: source.clone(),
-                    destination: match &self.output {
-                        Some(p) => p.clone(),
-                        None => default_output(source)?,
-                    },
+                    destination: self.output.clone(),
                     recursive: self.recursive,
                     settings,
                     allow_large_images: self.allow_large_images,
@@ -107,6 +101,15 @@ mod tests {
         let s = cli.settings().unwrap();
         assert_eq!(s.analysis_size, 2400);
         assert!(cli.batch_options(s).unwrap().is_none());
+    }
+    #[test]
+    fn folder_without_output_uses_console_mode() {
+        let cli = Cli::try_parse_from(["scan-angle", "input"]).unwrap();
+        let options = cli.batch_options(cli.settings().unwrap()).unwrap().unwrap();
+        assert!(options.destination.is_none());
+        let cli = Cli::try_parse_from(["scan-angle", "input", "-o", "results"]).unwrap();
+        let options = cli.batch_options(cli.settings().unwrap()).unwrap().unwrap();
+        assert_eq!(options.destination, Some("results".into()));
     }
     #[test]
     fn invalid_settings() {

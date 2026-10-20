@@ -20,16 +20,17 @@
 
 ```powershell
 cargo run --locked --release
+cargo run --locked --release -- "D:\workspace\images"
 cargo run --locked --release -- "D:\workspace\images" --output ".\results\images"
 ```
 
-不带输入文件夹时打开窗口，所有命令行设置会初始化对应控件：
+不带输入文件夹时打开窗口，所有命令行设置会初始化对应控件。带输入文件夹时执行批处理：指定 `--output` 会写入该目录；省略 `--output` 则只在终端打印每页结果，不创建任何输出目录或文件。
 
 ```powershell
 cargo run --locked --release -- --min-line-percent 25 --analysis-size 1600 --resample bilinear
 ```
 
-添加 `--recursive` 可包含子目录；默认输出到输入目录旁的 `<目录名>_角度结果`。超过 178,956,970 像素的可信本地图片须显式添加 `--allow-large-images`，窗口也提供对应选项。
+添加 `--recursive` 可包含子目录。超过 178,956,970 像素的可信本地图片须显式添加 `--allow-large-images`，窗口也提供对应选项。
 
 ```powershell
 cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-distance-percent 0.2 --merge-distance-pixels 2 --merge-gap-percent 1 --merge-gap-pixels 8
@@ -80,7 +81,7 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 
 ## 结果说明
 
-输出目录中包括：
+指定 `--output` 或使用窗口保存结果时，输出目录中包括：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -107,6 +108,8 @@ cargo run --locked --release -- "D:\workspace\images" --merge-angle 1.2 --merge-
 “可信”表示多条分离直线的方向较一致，是启发式判断，并非概率或测量精度保证。“需人工确认”可包含参考角度；角度空白表示没有足够证据。角度输出三位小数便于比较，并不意味着实际精度达到千分之一度。
 
 每次运行会覆盖所选输出目录中的 CSV、JSON 和同名预览。建议不同批次使用独立输出目录。输出目录不能与输入目录相同，也不能是输入目录的上级目录；输入目录内的输出子目录会自动排除。
+
+命令行省略 `--output` 时不会创建任何文件，也不会生成预览图；终端逐页显示偏差角度、建议转正角度、状态和入选直线数，读取失败时显示错误原因。窗口界面不受影响：选择输入文件夹后仍会自动填入输入目录旁的 `<目录名>_角度结果`，并将结果写入该目录。
 
 ## 直线合并
 
@@ -164,6 +167,25 @@ cargo test --locked
 回归样本来自原 Python 版的合成测试：120 组合并基准、24 组检测管线基准、11 张已知角度／断线／空白／圆形图，以及 30 个格式与 EXIF 样本。合并与检测管线逐字段对照；独立 LSD 实现允许细微线段差异，合成图角度误差须在原测试的 0.12° 内，分类须一致。测试还覆盖全部参数、GUI 初始化、非法输入、递归输出排除、逐文件进度、逐页失败记录、CSV BOM 和 JSON 结构。测试仅使用合成图片，不访问用户扫描文件或网络。
 
 算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。迁移记录见 `docs/rust-migration.md`。如需原 Python 版，请查看迁移前的 Git 历史。
+
+## 无 GUI（命令行）版本
+
+默认构建同时包含窗口和命令行。若只需批处理（例如服务器、计划任务或 CI 环境），关闭默认的 `gui` 特性即可构建完全不链接窗口组件的版本：
+
+```powershell
+cargo build --locked --release --no-default-features
+```
+
+生成 `target/release/scan-angle.exe`。该版本使用控制台子系统，不依赖 `eframe`、`rfd`、`open` 或图形会话；运行时必须提供输入文件夹，缺少文件夹会打印用法并以退出码 2 结束，不会尝试打开窗口：
+
+```powershell
+# 结果保存到文件
+.\target\release\scan-angle.exe "D:\workspace\images" --output ".\results\images"
+# 省略 --output：只在终端打印结果，不写入文件
+.\target\release\scan-angle.exe "D:\workspace\images"
+```
+
+对应的测试命令为 `cargo test --locked --no-default-features`。需要窗口界面时仍使用默认构建（不带 `--no-default-features`）。
 
 ## Windows 构建
 
