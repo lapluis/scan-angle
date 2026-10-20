@@ -1,0 +1,62 @@
+[
+  {
+    "source": "517x333.png",
+    "expected": "517_lanczos.png",
+    "filter": "lanczos"
+  },
+  {
+    "source": "517x333.png",
+    "expected": "517_bicubic.png",
+    "filter": "bicubic"
+  },
+  {
+    "source": "517x333.png",
+    "expected": "517_bilinear.png",
+    "filter": "bilinear"
+  },
+  {
+    "source": "517x333.png",
+    "expected": "517_nearest.png",
+    "filter": "nearest"
+  },
+  {
+    "source": "517x333.png",
+    "expected": "517_box.png",
+    "filter": "box"
+  },
+  {
+    "source": "517x333.png",
+    "expected": "517_hamming.png",
+    "filter": "hamming"
+  },
+  {
+    "source": "2049x1537.png",
+    "expected": "2049_lanczos.png",
+    "filter": "lanczos"
+  },
+  {
+    "source": "2049x1537.png",
+    "expected": "2049_bicubic.png",
+    "filter": "bicubic"
+  },
+  {
+    "source": "2049x1537.png",
+    "expected": "2049_bilinear.png",
+    "filter": "bilinear"
+  },
+  {
+    "source": "2049x1537.png",
+    "expected": "2049_nearest.png",
+    "filter": "nearest"
+  },
+  {
+    "source": "2049x1537.png",
+    "expected": "2049_box.png",
+    "filter": "box"
+  },
+  {
+    "source": "2049x1537.png",
+    "expected": "2049_hamming.png",
+    "filter": "hamming"
+  }
+]

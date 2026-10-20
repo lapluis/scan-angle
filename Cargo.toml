@@ -10,3 +10,19 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp"] }
+tiff = "0.11"
+lsdetect = "0.4.0"
+clap = { version = "4", features = ["derive"] }
+csv = "1"
+walkdir = "2"
+dunce = "1"
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+rfd = "0.15"
+open = "5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_System_Console", "Win32_Foundation", "Win32_Storage_FileSystem"] }

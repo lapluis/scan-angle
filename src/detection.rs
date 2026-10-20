@@ -193,11 +193,11 @@ fn add_interval(union: &mut Vec<(f64, f64)>, lo: f64, hi: f64) {
     union.sort_by(|a, b| a.0.total_cmp(&b.0));
     let mut merged: Vec<(f64, f64)> = Vec::new();
     for &(a, b) in union.iter() {
-        if let Some(last) = merged.last_mut() {
-            if a <= last.1 {
-                last.1 = last.1.max(b);
-                continue;
-            }
+        if let Some(last) = merged.last_mut()
+            && a <= last.1
+        {
+            last.1 = last.1.max(b);
+            continue;
         }
         merged.push((a, b));
     }

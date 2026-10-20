@@ -1,0 +1,2277 @@
+[
+  {
+    "segments": [
+      [
+        170,
+        100,
+        120,
+        100
+      ],
+      [
+        300,
+        125,
+        300,
+        75
+      ]
+    ],
+    "width": 400,
+    "height": 200,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            120.0,
+            100.0,
+            170.0,
+            100.0
+          ],
+          "length": 50.0,
+          "support_length": 50.0,
+          "span_length": 50.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            300.0,
+            75.0,
+            300.0,
+            125.0
+          ],
+          "length": 50.0,
+          "support_length": 50.0,
+          "span_length": 50.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 50.0,
+        "vertical": 50.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          120.0,
+          100.0,
+          170.0,
+          100.0
+        ],
+        "length": 50.0,
+        "support_length": 50.0,
+        "span_length": 50.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          300.0,
+          75.0,
+          300.0,
+          125.0
+        ],
+        "length": 50.0,
+        "support_length": 50.0,
+        "span_length": 50.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "vertical"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        169.9,
+        100,
+        120,
+        100
+      ],
+      [
+        300,
+        124.95,
+        300,
+        75.05
+      ]
+    ],
+    "width": 400,
+    "height": 200,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": null,
+      "correction": null,
+      "status": "需人工确认",
+      "count": 0,
+      "spread": null,
+      "reason": "没有足够的长直线；圆形、无边框或低对比图片可能无法判断",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            120.0,
+            100.0,
+            169.9,
+            100.0
+          ],
+          "length": 49.899994,
+          "support_length": 49.899994,
+          "span_length": 49.899994,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            300.0,
+            75.05,
+            300.0,
+            124.95
+          ],
+          "length": 49.899994,
+          "support_length": 49.899994,
+          "span_length": 49.899994,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 50.0,
+        "vertical": 50.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 0,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": []
+  },
+  {
+    "segments": [
+      [
+        1040,
+        300,
+        800,
+        300
+      ],
+      [
+        1600,
+        330,
+        1600,
+        270
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            800.0,
+            300.0,
+            1040.0,
+            300.0
+          ],
+          "length": 240.0,
+          "support_length": 240.0,
+          "span_length": 240.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1600.0,
+            270.0,
+            1600.0,
+            330.0
+          ],
+          "length": 60.0,
+          "support_length": 60.0,
+          "span_length": 60.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          800.0,
+          300.0,
+          1040.0,
+          300.0
+        ],
+        "length": 240.0,
+        "support_length": 240.0,
+        "span_length": 240.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          1600.0,
+          270.0,
+          1600.0,
+          330.0
+        ],
+        "length": 60.0,
+        "support_length": 60.0,
+        "span_length": 60.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "vertical"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        1039.9,
+        300,
+        800,
+        300
+      ],
+      [
+        1600,
+        329.95,
+        1600,
+        270.05
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": null,
+      "correction": null,
+      "status": "需人工确认",
+      "count": 0,
+      "spread": null,
+      "reason": "没有足够的长直线；圆形、无边框或低对比图片可能无法判断",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            800.0,
+            300.0,
+            1039.9,
+            300.0
+          ],
+          "length": 239.900024,
+          "support_length": 239.900024,
+          "span_length": 239.900024,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1600.0,
+            270.05,
+            1600.0,
+            329.95
+          ],
+          "length": 59.900024,
+          "support_length": 59.900024,
+          "span_length": 59.900024,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 0,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": []
+  },
+  {
+    "segments": [
+      [
+        2125,
+        500.0,
+        2050,
+        500.25
+      ],
+      [
+        2205,
+        501.0,
+        2130,
+        500.6
+      ],
+      [
+        1200.5,
+        625,
+        1200,
+        550
+      ],
+      [
+        1201,
+        705,
+        1200.5,
+        630
+      ]
+    ],
+    "width": 4000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 4000,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": -0.382,
+      "correction": 0.382,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 4,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            1199.9833,
+            550.0001,
+            1201.0167,
+            704.9999
+          ],
+          "length": 150.003333,
+          "support_length": 150.003333,
+          "span_length": 155.003222,
+          "gap_length": 4.999889,
+          "angle": -0.381966,
+          "member_count": 2,
+          "orientation": "vertical"
+        },
+        {
+          "coords": [
+            2049.9999,
+            500.385,
+            2205.0005,
+            500.54
+          ],
+          "length": 150.000075,
+          "support_length": 150.000075,
+          "span_length": 155.000673,
+          "gap_length": 5.000598,
+          "angle": 0.057298,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 400.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 4,
+        "merged": 2,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          1199.9833,
+          550.0001,
+          1201.0167,
+          704.9999
+        ],
+        "length": 150.003333,
+        "support_length": 150.003333,
+        "span_length": 155.003222,
+        "gap_length": 4.999889,
+        "angle": -0.381966,
+        "member_count": 2,
+        "orientation": "vertical"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        700,
+        2000,
+        550,
+        2002
+      ],
+      [
+        500,
+        3000,
+        502,
+        2850
+      ]
+    ],
+    "width": 1000,
+    "height": 4000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 4000,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": -0.764,
+      "correction": 0.764,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            550.0,
+            2002.0,
+            700.0,
+            2000.0
+          ],
+          "length": 150.013333,
+          "support_length": 150.013333,
+          "span_length": 150.013333,
+          "gap_length": 0.0,
+          "angle": -0.763898,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            502.0,
+            2850.0,
+            500.0,
+            3000.0
+          ],
+          "length": 150.013333,
+          "support_length": 150.013333,
+          "span_length": 150.013333,
+          "gap_length": 0.0,
+          "angle": 0.763898,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 100.0,
+        "vertical": 400.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          550.0,
+          2002.0,
+          700.0,
+          2000.0
+        ],
+        "length": 150.013333,
+        "support_length": 150.013333,
+        "span_length": 150.013333,
+        "gap_length": 0.0,
+        "angle": -0.763898,
+        "member_count": 1,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        2200,
+        500,
+        2050,
+        502
+      ],
+      [
+        1200,
+        700,
+        1202,
+        550
+      ]
+    ],
+    "width": 4000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 4000,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": 0.764,
+      "correction": -0.764,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            2050.0,
+            502.0,
+            2200.0,
+            500.0
+          ],
+          "length": 150.013333,
+          "support_length": 150.013333,
+          "span_length": 150.013333,
+          "gap_length": 0.0,
+          "angle": -0.763898,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1202.0,
+            550.0,
+            1200.0,
+            700.0
+          ],
+          "length": 150.013333,
+          "support_length": 150.013333,
+          "span_length": 150.013333,
+          "gap_length": 0.0,
+          "angle": 0.763898,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 400.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          1202.0,
+          550.0,
+          1200.0,
+          700.0
+        ],
+        "length": 150.013333,
+        "support_length": 150.013333,
+        "span_length": 150.013333,
+        "gap_length": 0.0,
+        "angle": 0.763898,
+        "member_count": 1,
+        "orientation": "vertical"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        100,
+        500,
+        1100,
+        500
+      ],
+      [
+        1110,
+        490,
+        1910,
+        510
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 20.0,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 100.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            100.0,
+            500.0,
+            1100.0,
+            500.0
+          ],
+          "length": 1000.0,
+          "support_length": 1000.0,
+          "span_length": 1000.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1110.0,
+            490.0,
+            1910.0,
+            510.0
+          ],
+          "length": 800.249961,
+          "support_length": 800.249961,
+          "span_length": 800.249961,
+          "gap_length": 0.0,
+          "angle": 1.432096,
+          "member_count": 1,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 20.0,
+        "gap_tolerance_px": 100.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          100.0,
+          500.0,
+          1100.0,
+          500.0
+        ],
+        "length": 1000.0,
+        "support_length": 1000.0,
+        "span_length": 1000.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        100,
+        500,
+        1100,
+        500
+      ],
+      [
+        1110,
+        490,
+        1910,
+        510
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 1.5,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 20.0,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 100.0
+    },
+    "expected": {
+      "angle": 0.636,
+      "correction": -0.636,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            100.1116,
+            489.9536,
+            1909.9993,
+            510.06
+          ],
+          "length": 1800.111108,
+          "support_length": 1800.111108,
+          "span_length": 1809.999406,
+          "gap_length": 9.888298,
+          "angle": 0.636483,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 1.5,
+        "perpendicular_tolerance_px": 20.0,
+        "gap_tolerance_px": 100.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          100.1116,
+          489.9536,
+          1909.9993,
+          510.06
+        ],
+        "length": 1800.111108,
+        "support_length": 1800.111108,
+        "span_length": 1809.999406,
+        "gap_length": 9.888298,
+        "angle": 0.636483,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        500,
+        1000,
+        500
+      ],
+      [
+        1005,
+        501,
+        1800,
+        501
+      ],
+      [
+        200,
+        200,
+        200,
+        800
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "可信",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "多条分离直线方向一致",
+      "fragment_count": 3,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            500.4984,
+            1800.0,
+            500.4984
+          ],
+          "length": 1595.0,
+          "support_length": 1595.0,
+          "span_length": 1600.0,
+          "gap_length": 5.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            200.0,
+            200.0,
+            200.0,
+            800.0
+          ],
+          "length": 600.0,
+          "support_length": 600.0,
+          "span_length": 600.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 3,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          500.4984,
+          1800.0,
+          500.4984
+        ],
+        "length": 1595.0,
+        "support_length": 1595.0,
+        "span_length": 1600.0,
+        "gap_length": 5.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          200.0,
+          200.0,
+          200.0,
+          800.0
+        ],
+        "length": 600.0,
+        "support_length": 600.0,
+        "span_length": 600.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "vertical"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        500,
+        1000,
+        500
+      ],
+      [
+        1005,
+        501,
+        1800,
+        501
+      ],
+      [
+        200,
+        200,
+        200,
+        800
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "可信",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "多条分离直线方向一致",
+      "fragment_count": 3,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            500.4984,
+            1800.0,
+            500.4984
+          ],
+          "length": 1595.0,
+          "support_length": 1595.0,
+          "span_length": 1600.0,
+          "gap_length": 5.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            200.0,
+            200.0,
+            200.0,
+            800.0
+          ],
+          "length": 600.0,
+          "support_length": 600.0,
+          "span_length": 600.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "vertical"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 3,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          500.4984,
+          1800.0,
+          500.4984
+        ],
+        "length": 1595.0,
+        "support_length": 1595.0,
+        "span_length": 1600.0,
+        "gap_length": 5.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          200.0,
+          200.0,
+          200.0,
+          800.0
+        ],
+        "length": 600.0,
+        "support_length": 600.0,
+        "span_length": 600.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "vertical"
+      }
+    ]
+  },
+  {
+    "segments": [],
+    "width": 400,
+    "height": 200,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0001,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 0.0001
+    },
+    "expected": {
+      "angle": null,
+      "correction": null,
+      "status": "需人工确认",
+      "count": 0,
+      "spread": null,
+      "reason": "没有足够的长直线；圆形、无边框或低对比图片可能无法判断",
+      "fragment_count": 0,
+      "merged_count": 0,
+      "merged_lines": [],
+      "thresholds_px": {
+        "horizontal": 50.0,
+        "vertical": 50.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0001,
+        "gap_tolerance_px": 0.0001,
+        "fragments": 0,
+        "merged": 0,
+        "selected": 0,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": []
+  },
+  {
+    "segments": [],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 1.25,
+      "merge_distance_percent": 0.5,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 2.0,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": null,
+      "correction": null,
+      "status": "需人工确认",
+      "count": 0,
+      "spread": null,
+      "reason": "没有足够的长直线；圆形、无边框或低对比图片可能无法判断",
+      "fragment_count": 0,
+      "merged_count": 0,
+      "merged_lines": [],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 1.25,
+        "perpendicular_tolerance_px": 3.0,
+        "gap_tolerance_px": 12.0,
+        "fragments": 0,
+        "merged": 0,
+        "selected": 0,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": []
+  },
+  {
+    "segments": [],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": null,
+      "correction": null,
+      "status": "需人工确认",
+      "count": 0,
+      "spread": null,
+      "reason": "没有足够的长直线；圆形、无边框或低对比图片可能无法判断",
+      "fragment_count": 0,
+      "merged_count": 0,
+      "merged_lines": [],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 6.0,
+        "fragments": 0,
+        "merged": 0,
+        "selected": 0,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": []
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1010,
+        302,
+        1800,
+        302
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.12,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 100.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1000.0,
+            300.0
+          ],
+          "length": 800.0,
+          "support_length": 800.0,
+          "span_length": 800.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1010.0,
+            302.0,
+            1800.0,
+            302.0
+          ],
+          "length": 790.0,
+          "support_length": 790.0,
+          "span_length": 790.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 1.5,
+        "gap_tolerance_px": 100.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1000.0,
+          300.0
+        ],
+        "length": 800.0,
+        "support_length": 800.0,
+        "span_length": 800.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          1010.0,
+          302.0,
+          1800.0,
+          302.0
+        ],
+        "length": 790.0,
+        "support_length": 790.0,
+        "span_length": 790.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1010,
+        302,
+        1800,
+        302
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.5,
+      "merge_distance_pixels": 1.5,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 100.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.9937,
+            1800.0,
+            300.9937
+          ],
+          "length": 1590.0,
+          "support_length": 1590.0,
+          "span_length": 1600.0,
+          "gap_length": 10.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 3.0,
+        "gap_tolerance_px": 100.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.9937,
+          1800.0,
+          300.9937
+        ],
+        "length": 1590.0,
+        "support_length": 1590.0,
+        "span_length": 1600.0,
+        "gap_length": 10.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1010,
+        302,
+        1800,
+        302
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 2.5,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 100.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.9937,
+            1800.0,
+            300.9937
+          ],
+          "length": 1590.0,
+          "support_length": 1590.0,
+          "span_length": 1600.0,
+          "gap_length": 10.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 2.5,
+        "gap_tolerance_px": 100.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.9937,
+          1800.0,
+          300.9937
+        ],
+        "length": 1590.0,
+        "support_length": 1590.0,
+        "span_length": 1600.0,
+        "gap_length": 10.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1005,
+        300,
+        1800,
+        300
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 6.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1800.0,
+            300.0
+          ],
+          "length": 1595.0,
+          "support_length": 1595.0,
+          "span_length": 1600.0,
+          "gap_length": 5.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 6.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1800.0,
+          300.0
+        ],
+        "length": 1595.0,
+        "support_length": 1595.0,
+        "span_length": 1600.0,
+        "gap_length": 5.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1005,
+        300,
+        1800,
+        300
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 2.0,
+      "merge_gap_pixels": 0.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1800.0,
+            300.0
+          ],
+          "length": 1595.0,
+          "support_length": 1595.0,
+          "span_length": 1600.0,
+          "gap_length": 5.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 12.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1800.0,
+          300.0
+        ],
+        "length": 1595.0,
+        "support_length": 1595.0,
+        "span_length": 1600.0,
+        "gap_length": 5.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1005,
+        300,
+        1800,
+        300
+      ]
+    ],
+    "width": 2400,
+    "height": 600,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 0.5,
+      "merge_gap_pixels": 0.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1000.0,
+            300.0
+          ],
+          "length": 800.0,
+          "support_length": 800.0,
+          "span_length": 800.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1005.0,
+            300.0,
+            1800.0,
+            300.0
+          ],
+          "length": 795.0,
+          "support_length": 795.0,
+          "span_length": 795.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 240.0,
+        "vertical": 60.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 3.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1000.0,
+          300.0
+        ],
+        "length": 800.0,
+        "support_length": 800.0,
+        "span_length": 800.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          1005.0,
+          300.0,
+          1800.0,
+          300.0
+        ],
+        "length": 795.0,
+        "support_length": 795.0,
+        "span_length": 795.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1000,
+        300,
+        1800,
+        300
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 0.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1800.0,
+            300.0
+          ],
+          "length": 1600.0,
+          "support_length": 1600.0,
+          "span_length": 1600.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 0.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1800.0,
+          300.0
+        ],
+        "length": 1600.0,
+        "support_length": 1600.0,
+        "span_length": 1600.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        900,
+        300,
+        1800,
+        300
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 0.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 1,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 1,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1800.0,
+            300.0
+          ],
+          "length": 1600.0,
+          "support_length": 1600.0,
+          "span_length": 1600.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 2,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 0.0,
+        "fragments": 2,
+        "merged": 1,
+        "selected": 1,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1800.0,
+          300.0
+        ],
+        "length": 1600.0,
+        "support_length": 1600.0,
+        "span_length": 1600.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 2,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1001,
+        300,
+        1800,
+        300
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 0.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1000.0,
+            300.0
+          ],
+          "length": 800.0,
+          "support_length": 800.0,
+          "span_length": 800.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1001.0,
+            300.0,
+            1800.0,
+            300.0
+          ],
+          "length": 799.0,
+          "support_length": 799.0,
+          "span_length": 799.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 0.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1000.0,
+          300.0
+        ],
+        "length": 800.0,
+        "support_length": 800.0,
+        "span_length": 800.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          1001.0,
+          300.0,
+          1800.0,
+          300.0
+        ],
+        "length": 799.0,
+        "support_length": 799.0,
+        "span_length": 799.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      }
+    ]
+  },
+  {
+    "segments": [
+      [
+        200,
+        300,
+        1000,
+        300
+      ],
+      [
+        1000,
+        300.5,
+        1800,
+        300.5
+      ]
+    ],
+    "width": 2000,
+    "height": 1000,
+    "settings": {
+      "max_angle": 15.0,
+      "min_line_percent": 10.0,
+      "min_line_pixels": 50.0,
+      "analysis_size": 2400,
+      "resample": "lanczos",
+      "merge_angle": 0.75,
+      "merge_distance_percent": 0.0,
+      "merge_distance_pixels": 0.0,
+      "merge_gap_percent": 0.0,
+      "merge_gap_pixels": 0.0
+    },
+    "expected": {
+      "angle": 0.0,
+      "correction": -0.0,
+      "status": "需人工确认",
+      "count": 2,
+      "spread": 0.0,
+      "reason": "直线证据不足或方向存在冲突；请核对预览",
+      "fragment_count": 2,
+      "merged_count": 2,
+      "merged_lines": [
+        {
+          "coords": [
+            200.0,
+            300.0,
+            1000.0,
+            300.0
+          ],
+          "length": 800.0,
+          "support_length": 800.0,
+          "span_length": 800.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        },
+        {
+          "coords": [
+            1000.0,
+            300.5,
+            1800.0,
+            300.5
+          ],
+          "length": 800.0,
+          "support_length": 800.0,
+          "span_length": 800.0,
+          "gap_length": 0.0,
+          "angle": 0.0,
+          "member_count": 1,
+          "orientation": "horizontal"
+        }
+      ],
+      "thresholds_px": {
+        "horizontal": 200.0,
+        "vertical": 100.0
+      },
+      "merge": {
+        "angle_tolerance_deg": 0.75,
+        "perpendicular_tolerance_px": 0.0,
+        "gap_tolerance_px": 0.0,
+        "fragments": 2,
+        "merged": 2,
+        "selected": 2,
+        "ignored_frame_fragments": 0
+      }
+    },
+    "lines": [
+      {
+        "coords": [
+          200.0,
+          300.0,
+          1000.0,
+          300.0
+        ],
+        "length": 800.0,
+        "support_length": 800.0,
+        "span_length": 800.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      },
+      {
+        "coords": [
+          1000.0,
+          300.5,
+          1800.0,
+          300.5
+        ],
+        "length": 800.0,
+        "support_length": 800.0,
+        "span_length": 800.0,
+        "gap_length": 0.0,
+        "angle": 0.0,
+        "member_count": 1,
+        "orientation": "horizontal"
+      }
+    ]
+  }
+]
