@@ -153,6 +153,9 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
     if same_path(&source, &destination) {
         bail!("输出文件夹必须与输入文件夹不同");
     }
+    if inside(&source, &destination) {
+        bail!("输出文件夹不能是输入文件夹的上级目录");
+    }
     fs::create_dir_all(destination.join("previews"))?;
     let depth = if options.recursive { usize::MAX } else { 1 };
     let mut files = Vec::new();

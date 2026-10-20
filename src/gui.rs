@@ -117,6 +117,7 @@ impl App {
                 return;
             }
         };
+        self.error = None;
         let (tx, rx) = mpsc::channel();
         self.receiver = Some(rx);
         self.rows.clear();
@@ -150,6 +151,7 @@ impl App {
                 }
                 Message::Done(result) => {
                     self.receiver = None;
+                    self.confirm_close = false;
                     match result {
                         Ok(rows) => {
                             let good = rows.iter().filter(|r| r.status == "可信").count();
@@ -185,40 +187,38 @@ impl eframe::App for App {
             ui.heading("扫图偏角检测");
             ui.add_space(8.);
             ui.add_enabled_ui(!running, |ui| {
-                egui::Grid::new("paths")
-                    .num_columns(3)
-                    .spacing([10., 8.])
-                    .show(ui, |ui| {
-                        ui.label("输入文件夹");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.form.source)
-                                .desired_width((ui.available_width() - 80.).max(200.)),
-                        );
-                        if ui.button("浏览…").clicked()
-                            && let Some(p) = rfd::FileDialog::new()
-                                .set_title("选择扫描图片文件夹")
-                                .pick_folder()
-                        {
-                            self.form.source = p.to_string_lossy().into_owned();
-                            if let Ok(d) = batch::default_output(&p) {
-                                self.form.destination = d.to_string_lossy().into_owned();
-                            }
+                ui.horizontal(|ui| {
+                    ui.label("输入文件夹");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.form.source)
+                            .desired_width((ui.available_width() - 65.).max(200.)),
+                    );
+                    if ui.button("浏览…").clicked()
+                        && let Some(p) = rfd::FileDialog::new()
+                            .set_title("选择扫描图片文件夹")
+                            .pick_folder()
+                    {
+                        self.form.source = p.to_string_lossy().into_owned();
+                        if let Ok(d) = batch::default_output(&p) {
+                            self.form.destination = d.to_string_lossy().into_owned();
                         }
-                        ui.end_row();
-                        ui.label("输出文件夹");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.form.destination)
-                                .desired_width((ui.available_width() - 80.).max(200.)),
-                        );
-                        if ui.button("浏览…").clicked()
-                            && let Some(p) = rfd::FileDialog::new()
-                                .set_title("选择结果保存文件夹")
-                                .pick_folder()
-                        {
-                            self.form.destination = p.to_string_lossy().into_owned();
-                        }
-                        ui.end_row();
-                    });
+                    }
+                });
+                ui.add_space(4.);
+                ui.horizontal(|ui| {
+                    ui.label("输出文件夹");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.form.destination)
+                            .desired_width((ui.available_width() - 65.).max(200.)),
+                    );
+                    if ui.button("浏览…").clicked()
+                        && let Some(p) = rfd::FileDialog::new()
+                            .set_title("选择结果保存文件夹")
+                            .pick_folder()
+                    {
+                        self.form.destination = p.to_string_lossy().into_owned();
+                    }
+                });
                 ui.add_space(8.);
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.form.recursive, "包含子文件夹");
@@ -319,7 +319,7 @@ impl eframe::App for App {
                     }
                 });
         }
-        if self.confirm_close {
+        if self.confirm_close && running {
             egui::Window::new("正在检测")
                 .collapsible(false)
                 .show(ctx, |ui| {
@@ -391,6 +391,29 @@ pub fn run(cli: Cli, settings: DetectionSettings) -> Result<()> {
 mod tests {
     use super::*;
     use clap::Parser;
+    #[test]
+    fn finishing_a_batch_clears_pending_close_confirmation() {
+        for result in [Ok(Vec::new()), Err(anyhow::anyhow!("synthetic failure"))] {
+            let cli = Cli::try_parse_from(["scan-angle"]).unwrap();
+            let (tx, rx) = mpsc::channel();
+            let mut app = App {
+                form: Form::new(&cli, &cli.settings().unwrap()),
+                receiver: Some(rx),
+                rows: Vec::new(),
+                completed: 0,
+                total: 0,
+                status: String::new(),
+                error: None,
+                confirm_close: true,
+                allow_close: false,
+            };
+            tx.send(Message::Done(result)).unwrap();
+            app.poll();
+            assert!(app.receiver.is_none());
+            assert!(!app.confirm_close);
+            assert!(!app.allow_close);
+        }
+    }
     #[test]
     fn gui_initialization_and_validation() {
         let cli = Cli::try_parse_from([

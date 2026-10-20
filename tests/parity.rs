@@ -175,6 +175,11 @@ fn batch_outputs_failures_progress_and_exclusion() {
     let mut bad = options.clone();
     bad.destination = source;
     assert!(batch::run_batch(&bad, |_| {}).is_err());
+    bad.destination = temp.path().to_owned();
+    let error = batch::run_batch(&bad, |_| {}).unwrap_err().to_string();
+    assert!(error.contains("上级目录"), "{error}");
+    assert!(!temp.path().join("angles.csv").exists());
+    assert!(!temp.path().join("previews").exists());
     bad.destination = temp.path().join("not-created");
     bad.settings.min_line_pixels = f64::NAN;
     assert!(batch::run_batch(&bad, |_| {}).is_err());
