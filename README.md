@@ -5,6 +5,7 @@
 ## 功能
 
 - 窗口界面与命令行两种入口。
+- 命令行支持对齐表格或 `--json` 输出，JSON 结构与 `details.json` 相同。
 - 支持 TIFF（含多页）、PNG、JPEG、BMP、WebP。
 - 支持遍历子文件夹，损坏图片记录失败后继续处理。目录列表无法读取时整批报错，避免将不完整扫描标记为完成。
 - 窗口进度条按已处理文件数推进，显示“已处理 / 总数”；多页 TIFF 按一个文件计，读取失败文件也计入已处理数。
@@ -24,7 +25,7 @@ cargo run --locked --release -- "D:\workspace\images"
 cargo run --locked --release -- "D:\workspace\images" --output ".\results\images"
 ```
 
-不带输入文件夹时打开窗口，所有命令行设置会初始化对应控件。带输入文件夹时执行批处理：指定 `--output` 会写入该目录；省略 `--output` 则只在终端打印每页结果，不创建任何输出目录或文件。
+不带输入文件夹时打开窗口，所有命令行设置会初始化对应控件。带输入文件夹时执行批处理：指定 `--output` 会写入该目录；省略 `--output` 则只在终端打印每页结果，不创建任何输出目录或文件。添加 `--json` 时改为在标准输出打印 JSON 数组（结构与 `details.json` 相同），不打印表格；与 `--output` 同时使用时仍会写入 CSV、JSON 和预览文件。
 
 ```powershell
 cargo run --locked --release -- --min-line-percent 25 --analysis-size 1600 --resample bilinear

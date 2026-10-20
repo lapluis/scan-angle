@@ -142,7 +142,23 @@ fn process_page(
     obj.insert("lines".into(), json!(lines));
     Ok((row, detail))
 }
-pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> Result<Vec<Row>> {
+pub fn run_batch(options: &BatchOptions, progress: impl FnMut(Progress)) -> Result<Vec<Row>> {
+    let collect_details = options.destination.is_some();
+    Ok(execute(options, collect_details, progress)?.0)
+}
+
+pub fn run_batch_details(
+    options: &BatchOptions,
+    progress: impl FnMut(Progress),
+) -> Result<(Vec<Row>, Vec<Value>)> {
+    execute(options, true, progress)
+}
+
+fn execute(
+    options: &BatchOptions,
+    collect_details: bool,
+    mut progress: impl FnMut(Progress),
+) -> Result<(Vec<Row>, Vec<Value>)> {
     options.settings.validate()?;
     let source = dunce::canonicalize(&options.source).context("输入文件夹不存在")?;
     if !source.is_dir() {
@@ -230,14 +246,14 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
             let (row, detail) =
                 item.unwrap_or_else(|error| failure(&file, Some(page), error, &options.settings));
             rows.push(row);
-            if destination.is_some() {
+            if collect_details {
                 details.push(detail);
             }
         });
         if let Err(error) = result {
             let (row, detail) = failure(&file, None, error, &options.settings);
             rows.push(row);
-            if destination.is_some() {
+            if collect_details {
                 details.push(detail);
             }
         }
@@ -268,7 +284,7 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
         serde_json::to_writer_pretty(&mut writer, &details)?;
         writer.flush()?;
     }
-    Ok(rows)
+    Ok((rows, details))
 }
 fn float_text(n: f64) -> String {
     if n.fract() == 0. {

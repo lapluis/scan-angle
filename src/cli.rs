@@ -32,6 +32,12 @@ pub struct Cli {
     pub merge_gap_pixels: f64,
     #[arg(long, help = "允许处理超过默认像素保护上限的可信本地扫描图")]
     pub allow_large_images: bool,
+    #[arg(
+        long,
+        requires = "folder",
+        help = "以 JSON 格式输出检测结果，结构与 details.json 相同"
+    )]
+    pub json: bool,
 }
 impl Cli {
     pub fn settings(&self) -> Result<DetectionSettings, clap::Error> {
@@ -101,6 +107,12 @@ mod tests {
         let s = cli.settings().unwrap();
         assert_eq!(s.analysis_size, 2400);
         assert!(cli.batch_options(s).unwrap().is_none());
+    }
+    #[test]
+    fn json_requires_folder() {
+        let cli = Cli::try_parse_from(["scan-angle", "input", "--json"]).unwrap();
+        assert!(cli.json);
+        assert!(Cli::try_parse_from(["scan-angle", "--json"]).is_err());
     }
     #[test]
     fn folder_without_output_uses_console_mode() {

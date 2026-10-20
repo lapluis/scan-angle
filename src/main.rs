@@ -4,7 +4,20 @@ use clap::CommandFactory;
 use clap::Parser;
 #[cfg(feature = "gui")]
 use scan_angle::gui;
-use scan_angle::{batch::run_batch, cli::Cli, report};
+use scan_angle::{
+    batch::{run_batch, run_batch_details},
+    cli::Cli,
+    report,
+};
+use std::io::{self, Write};
+
+fn print_stdout(text: &str) -> anyhow::Result<()> {
+    match writeln!(io::stdout().lock(), "{text}") {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
 
 fn main() {
     // A double-click opens only the GUI; CLI invocations reuse their parent terminal.
@@ -20,8 +33,13 @@ fn main() {
     let settings = cli.settings().unwrap_or_else(|e| e.exit());
     let result = (|| -> anyhow::Result<()> {
         if let Some(options) = cli.batch_options(settings.clone())? {
-            let rows = run_batch(&options, |_| {})?;
-            println!("{}", report::format_table(&rows));
+            if cli.json {
+                let (_, details) = run_batch_details(&options, |_| {})?;
+                print_stdout(&serde_json::to_string_pretty(&details)?)?;
+            } else {
+                let rows = run_batch(&options, |_| {})?;
+                print_stdout(&report::format_table(&rows))?;
+            }
         } else {
             #[cfg(feature = "gui")]
             gui::run(cli, settings)?;

@@ -344,3 +344,57 @@ fn executable_console_only_without_output() {
     assert_eq!(entries, vec![source]);
     assert!(!dir.path().join("input_角度结果").exists());
 }
+
+#[test]
+fn executable_json_output() {
+    use std::process::Command;
+    let binary = env!("CARGO_BIN_EXE_scan-angle");
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("input");
+    fs::create_dir_all(&source).unwrap();
+    fs::copy(fixture("angle_0.png"), source.join("angle.png")).unwrap();
+    fs::write(source.join("broken.png"), b"broken").unwrap();
+    let run = Command::new(binary)
+        .arg(&source)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let details: Value = serde_json::from_slice(&run.stdout).unwrap();
+    let items = details.as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().all(|d| d["settings"].is_object()));
+    assert!(items.iter().all(|d| d["lines"].is_array()));
+    assert!(
+        items
+            .iter()
+            .any(|d| d["status"] == "读取失败" && d["error"].is_string())
+    );
+    let entries: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert_eq!(entries, vec![source.clone()]);
+    assert!(!dir.path().join("input_角度结果").exists());
+
+    let output = dir.path().join("results");
+    let run = Command::new(binary)
+        .arg(&source)
+        .args(["--json", "--output"])
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let details: Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(details.as_array().unwrap().len(), 2);
+    assert!(output.join("angles.csv").is_file());
+    assert!(output.join("details.json").is_file());
+}
