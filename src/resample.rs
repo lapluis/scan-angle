@@ -300,7 +300,16 @@ fn resize_rgb(
 /// (case-insensitive, matching the Python implementation).
 pub fn thumbnail(image: &DynamicImage, size: u32, filter: &str) -> RgbImage {
     // Pillow's estimate() converts to RGB before thumbnailing.
-    let rgb = image.to_rgb8();
+    let rgb = match image {
+        // Pillow's integer grayscale -> RGB clips, rather than normalizing 16 bits.
+        DynamicImage::ImageLuma16(gray) => {
+            RgbImage::from_fn(gray.width(), gray.height(), |x, y| {
+                let v = gray.get_pixel(x, y)[0].min(255) as u8;
+                Rgb([v, v, v])
+            })
+        }
+        _ => image.to_rgb8(),
+    };
     let (width, height) = rgb.dimensions();
     let Some((target_width, target_height)) = thumbnail_size(width, height, size) else {
         return rgb;
@@ -360,6 +369,17 @@ mod tests {
         DynamicImage::ImageRgb8(image)
     }
 
+    #[test]
+    fn integer_grayscale_clips_like_pillow_rgb_conversion() {
+        let gray = image::ImageBuffer::from_fn(4, 1, |x, _| {
+            image::Luma([[0_u16, 76, 255, 40000][x as usize]])
+        });
+        let rgb = thumbnail(&DynamicImage::ImageLuma16(gray), 256, "nearest");
+        assert_eq!(
+            rgb.as_raw(),
+            &[0, 0, 0, 76, 76, 76, 255, 255, 255, 255, 255, 255]
+        );
+    }
     #[test]
     fn all_six_filters_scale_and_keep_constant_color() {
         for name in [

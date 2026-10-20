@@ -32,7 +32,7 @@ names. CI runs both suites. Only the new Rust branch is to be pushed after valid
 ## Validation
 
 - Python baseline suite: 58/58 passed, unchanged Python source/config/build script.
-- Rust: 22 unit tests and 7 integration tests passed; fmt and clippy -D warnings passed.
+- Rust: 23 unit tests and 7 integration tests passed; fmt and clippy -D warnings passed.
 - Golden coverage: 120 merge cases, 24 pipeline cases, 11 image angle/classification
   cases, 30 format/EXIF fixtures (42 pages), 12 six-filter pixel comparisons.
 - Synthetic detector classifications match Python; maximum measured angle difference

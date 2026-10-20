@@ -164,7 +164,7 @@ pub fn run_batch(options: &BatchOptions, mut progress: impl FnMut(Progress)) -> 
     {
         let entry = entry?;
         let path = entry.path();
-        if !entry.file_type().is_file() {
+        if !path.is_file() {
             continue;
         }
         let ext = path
