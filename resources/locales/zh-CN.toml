@@ -14,7 +14,6 @@ fallback = "en-US"
 "cli.help.allow_large_images" = "允许处理超过默认像素保护上限的可信本地扫描图"
 "cli.help.json" = "以 JSON 格式输出检测结果，结构与 details.json 相同"
 "cli.error.max_angle_range" = "max_angle 必须在 1～30 之间"
-"cli.error.no_gui_requires_folder" = "无 GUI 版本必须提供输入文件夹，例如：\n    scan-angle <输入目录> [--output <输出目录>]"
 
 "settings.label.max_angle" = "最大偏角 ±（°）"
 "settings.label.min_line_percent" = "最短直线 ≥ 对应方向边长（%）"
@@ -158,7 +157,7 @@ fallback = "en-US"
 
 "cli.help.version" = "显示版本"
 
-"cli.help.folder" = "输入图片文件夹；省略时打开窗口"
+"cli.help.folder" = "输入图片文件夹"
 
 "cli.help.output" = "输出目录；省略时只输出终端结果"
 

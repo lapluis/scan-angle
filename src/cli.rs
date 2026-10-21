@@ -172,6 +172,10 @@ impl Cli {
     }
 
     pub fn localized_command(i18n: &I18n) -> clap::Command {
+        Self::localized_command_impl(i18n, false)
+    }
+
+    fn localized_command_impl(i18n: &I18n, folder_required: bool) -> clap::Command {
         let mut cmd = Self::command()
             .about(i18n.translate("cli.about"))
             .disable_help_flag(true)
@@ -194,6 +198,9 @@ impl Cli {
                     .action(clap::ArgAction::Version)
                     .help(i18n.translate("cli.help.version")),
             );
+        if folder_required {
+            cmd = cmd.mut_arg("folder", |arg| arg.required(true));
+        }
         let ids: Vec<_> = cmd
             .get_arguments()
             .map(|a| a.get_id().to_string())
@@ -231,12 +238,50 @@ impl Cli {
         cmd
     }
 
-    pub fn parse_localized(args: &[OsString], i18n: &I18n) -> Result<Self, clap::Error> {
-        let matches = Self::localized_command(i18n).try_get_matches_from(args)?;
+    /// Parse arguments for a frontend. The command-line executable requires a
+    /// folder; the GUI may omit it and open its window instead.
+    pub fn parse_localized(
+        args: &[OsString],
+        i18n: &I18n,
+        folder_required: bool,
+    ) -> Result<Self, clap::Error> {
+        let matches =
+            Self::localized_command_impl(i18n, folder_required).try_get_matches_from(args)?;
         Self::from_arg_matches(&matches)
     }
 
-    pub fn error_text(error: &clap::Error, i18n: &I18n) -> String {
+    /// Load the display language for a frontend, or report and exit on failure.
+    pub fn language_or_exit(args: &[OsString]) -> I18n {
+        let language = Self::load_language(args).unwrap_or_else(|error| {
+            let fallback = Self::bootstrap(args)
+                .0
+                .and_then(|id| I18n::with_locale(&id).ok())
+                .unwrap_or_default();
+            eprintln!(
+                "{}: {}",
+                fallback.translate("app.error_prefix"),
+                fallback.translate_message(&error)
+            );
+            std::process::exit(2);
+        });
+        for warning in language.warning_texts() {
+            eprintln!("{warning}");
+        }
+        language
+    }
+
+    /// Print a localized parser error and exit with Clap's status code.
+    pub fn exit_with_parse_error(error: clap::Error, i18n: &I18n, folder_required: bool) -> ! {
+        let text = Self::error_text(&error, i18n, folder_required);
+        if error.use_stderr() {
+            eprint!("{text}");
+        } else {
+            print!("{text}");
+        }
+        std::process::exit(error.exit_code());
+    }
+
+    pub fn error_text(error: &clap::Error, i18n: &I18n, folder_required: bool) -> String {
         use clap::error::{ContextKind as C, ErrorKind as E};
         if matches!(error.kind(), E::DisplayHelp | E::DisplayVersion) {
             return error.to_string();
@@ -280,7 +325,7 @@ impl Cli {
             i18n.translate("app.error_prefix"),
             message,
             i18n.translate("cli.usage"),
-            Self::localized_command(i18n)
+            Self::localized_command_impl(i18n, folder_required)
                 .render_usage()
                 .to_string()
                 .trim_start_matches("Usage: "),

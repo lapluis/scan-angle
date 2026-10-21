@@ -19,7 +19,7 @@ GUI 下拉框选择的语言保存到当前用户的设置目录：Windows 为 `
 
 ## 外置覆盖及新增语言
 
-在 **EXE 所在目录** 创建 `locales` 目录；它与启动程序时的工作目录无关。
+在所用 **EXE 所在目录** 创建 `locales` 目录；它与启动程序时的工作目录无关。`scan-angle.exe` 和 `scan-angle-gui.exe` 分别读取各自目录下的语言包。
 
 ```text
 scan-angle.exe
@@ -84,7 +84,7 @@ scan-angle.exe --lang-file ".\locales\fr-FR.toml" --help
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
-cargo test --locked --no-default-features
+cargo test --locked --no-default-features --features cli
 ```
 
 测试覆盖内置资源键和占位符一致性、第三语言与局部覆盖、无效文件回退、独立工作目录、帮助及参数错误、GUI 已有结果重新渲染、偏好读写，以及中英文运行时导出内容一致。

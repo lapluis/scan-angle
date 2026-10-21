@@ -2,7 +2,7 @@
 
 本地批量检测扫描图片偏角的工具。根据纸张边缘、边框或其他长直线估算倾斜角度，给出转正建议，并输出终端表格、CSV/JSON 结果和红色标线预览。所有处理在本地完成，原图不会被修改。
 
-Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全不依赖窗口组件的命令行版本。
+Rust 实现，提供独立的命令行程序 `scan-angle.exe` 和窗口程序 `scan-angle-gui.exe`；命令行程序可以单独构建，完全不链接窗口组件。
 
 ## 目录
 
@@ -18,7 +18,7 @@ Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全
 
 ## 功能
 
-- 窗口界面与命令行两种入口；命令行支持对齐表格和 `--json` 输出。
+- 独立的窗口程序 `scan-angle-gui.exe` 与命令行程序 `scan-angle.exe`；命令行支持对齐表格和 `--json` 输出。
 - 支持 TIFF（含多页）、PNG、JPEG、BMP、WebP。
 - 支持遍历子文件夹，损坏图片记录失败后继续处理。目录列表无法读取时整批报错，避免将不完整扫描标记为完成。
 - 窗口进度条按已处理文件数推进，显示“已处理 / 总数”；多页 TIFF 按一个文件计，读取失败文件也计入已处理数。
@@ -41,7 +41,7 @@ Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全
 仓库目前没有 GitHub Release 或 tag。CI 在每次 push/PR 时执行测试和 Release 构建，并保存 Windows x64 可执行文件：
 
 1. 打开 [Tests 工作流](https://github.com/lapluis/scan-angle/actions/workflows/tests.yml) 最近一次成功的运行。
-2. 下载 Artifact `ScanAngle-Rust-windows-x64`，解压得到 `scan-angle.exe`。
+2. 下载 Artifact `ScanAngle-Rust-windows-x64`，解压得到 `scan-angle.exe`（命令行）和 `scan-angle-gui.exe`（窗口）。
 
 也可以从源码构建：
 
@@ -49,11 +49,11 @@ Rust 实现，提供桌面窗口界面和命令行入口，也可以构建完全
 cargo build --locked --release
 ```
 
-生成 `target\release\scan-angle.exe`。构建直接使用 Cargo，不需要 Python、uv 或额外编译脚本。
+生成 `target\release\scan-angle.exe` 和 `target\release\scan-angle-gui.exe`。构建直接使用 Cargo，不需要 Python、uv 或额外编译脚本。
 
 ### 窗口模式
 
-直接运行 `scan-angle.exe`（不带参数）打开窗口。命令行传入的设置会初始化对应控件；选择输入文件夹后，输出文件夹会自动填入输入目录旁的 `<目录名>_角度结果`。
+运行 `scan-angle-gui.exe` 打开窗口；不带参数、带参数都可以。命令行传入的设置会初始化对应控件，包括输入文件夹；选择输入文件夹后，输出文件夹会自动填入输入目录旁的 `<目录名>_角度结果`。
 
 ### 命令行模式
 
@@ -119,7 +119,7 @@ scan-angle.exe "D:\images" --lang-file "D:\translations\fr-FR.toml"
 
 | 参数 | 说明 |
 | --- | --- |
-| `[FOLDER]` | 输入图片文件夹。GUI 构建省略时打开窗口；无 GUI 构建必须提供。 |
+| `[FOLDER]` | 输入图片文件夹。`scan-angle.exe` 必须提供；`scan-angle-gui.exe` 可省略。 |
 | `-o, --output <DIR>` | 输出目录。省略时结果只打印到终端，不写入任何文件。 |
 | `-r, --recursive` | 递归包含子目录。 |
 | `--allow-large-images` | 允许处理超过 178,956,970 像素的可信本地扫描图。 |
@@ -266,10 +266,12 @@ scan-angle.exe "D:\images" --lang-file "D:\translations\fr-FR.toml"
 - `imaging.rs` / `resample.rs`：图片读取、分析图缩放和六种缩放滤镜。
 - `batch.rs`：批量遍历、逐页处理、CSV/JSON 报告和预览输出。
 - `report.rs`：命令行结果表格的列宽计算与对齐。
-- `cli.rs` / `gui.rs`：命令行和窗口入口。
+- `cli.rs`：命令行参数、语言启动和本地化诊断。
+- `gui.rs`：窗口界面。
 - `i18n.rs` / `resources/locales/`：TOML 语言资源、外置覆盖、回退与消息格式化。
 - `preferences.rs`：GUI 的用户语言偏好读写。
-- `main.rs`：GUI/批处理分发和命令行输出。
+- `main.rs`：命令行程序 `scan-angle` 的入口。
+- `bin/scan-angle-gui.rs`：窗口程序 `scan-angle-gui` 的入口。
 - `multiframe.rs`：APNG 默认帧和 MPF JPEG 的元数据发现。
 - `wic.rs`：Windows 内置 TIFF 编解码回退。
 - `examples/detector_check.rs`：对 `images_golden.json` 的样本运行检测器，并打印角度/状态与期望值。
@@ -290,15 +292,22 @@ cargo test --locked
 
 算法并非逐像素复刻 Pillow/OpenCV，原始线段数量和预览压缩像素可能不同。设置含义、输出字段、合并规则和置信度判据保持一致。
 
-### 无 GUI 构建
+### 构建特性
 
-默认构建同时包含窗口和命令行。若只需批处理（例如服务器、计划任务或 CI 环境），关闭默认的 `gui` 特性即可构建完全不链接窗口组件的版本：
+默认特性为 `cli` 和 `gui`，一次生成两个可执行文件。`cargo run` 默认运行命令行程序，窗口程序用 `--bin` 指定：
 
 ```powershell
-cargo build --locked --release --no-default-features
+cargo run -- "D:\workspace\images"
+cargo run --bin scan-angle-gui
 ```
 
-生成 `target/release/scan-angle.exe`。该版本使用控制台子系统，不依赖 `eframe`、`rfd`、`open` 或图形会话；运行时必须提供输入文件夹，缺少文件夹会打印用法并以退出码 2 结束，不会尝试打开窗口：
+若只需批处理（例如服务器、计划任务或 CI 环境），只启用 `cli` 特性即可构建完全不链接窗口组件的版本：
+
+```powershell
+cargo build --locked --release --no-default-features --features cli
+```
+
+生成 `target/release/scan-angle.exe`，使用控制台子系统，不依赖 `eframe`、`rfd`、`open` 或图形会话。运行时必须提供输入文件夹，缺少文件夹会打印用法并以退出码 2 结束：
 
 ```powershell
 # 结果保存到文件
@@ -307,7 +316,17 @@ cargo build --locked --release --no-default-features
 .\target\release\scan-angle.exe "D:\workspace\images"
 ```
 
-对应的测试命令为 `cargo test --locked --no-default-features`。需要窗口界面时仍使用默认构建（不带 `--no-default-features`）。
+对应的测试命令为 `cargo test --locked --no-default-features --features cli`。只构建窗口程序时启用 `gui` 特性：
+
+```powershell
+cargo build --locked --release --no-default-features --features gui
+```
+
+生成 `target/release/scan-angle-gui.exe`；它仍解析命令行参数以初始化窗口控件。由于 `cargo run` 的默认目标是命令行程序 `scan-angle`，只启用 `gui` 时必须显式指定 bin：
+
+```powershell
+cargo run --locked --release --no-default-features --features gui --bin scan-angle-gui
+```
 
 ### Windows 构建
 
@@ -317,4 +336,4 @@ cargo build --locked
 cargo build --locked --release
 ```
 
-分别生成 `target/debug/scan-angle.exe` 和 `target/release/scan-angle.exe`。双击打开窗口，带输入目录则批处理。构建产物不纳入 Git。GitHub Actions 在 Windows 上执行测试和 Release 构建并保存可执行文件 artifact。
+分别生成 `target/debug/scan-angle.exe`、`target/debug/scan-angle-gui.exe` 及对应的 Release 版本。在终端运行 `scan-angle.exe`，双击或运行 `scan-angle-gui.exe` 打开窗口。构建产物不纳入 Git。GitHub Actions 在 Windows 上执行测试和 Release 构建并保存两个可执行文件的 artifact。

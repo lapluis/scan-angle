@@ -38,7 +38,10 @@ pub struct Form {
 impl Form {
     pub fn new(cli: &Cli, s: &DetectionSettings) -> Self {
         Self {
-            source: String::new(),
+            source: cli
+                .folder
+                .as_ref()
+                .map_or(String::new(), |p| p.to_string_lossy().into_owned()),
             destination: cli
                 .output
                 .as_ref()
@@ -610,6 +613,8 @@ mod tests {
         assert_eq!(form.options().unwrap().settings.max_angle, 20.);
         form.numbers[3] = "400.5".into();
         assert!(form.options().is_err());
+        let cli = Cli::try_parse_from(["scan-angle", "input"]).unwrap();
+        assert_eq!(Form::new(&cli, &cli.settings().unwrap()).source, "input");
     }
     fn ui_text(app: &mut App, size: egui::Vec2) -> String {
         fn texts(shape: &egui::Shape, result: &mut Vec<String>, width: f32) {

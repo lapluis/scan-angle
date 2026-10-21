@@ -4,12 +4,34 @@ version = "0.2.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Local batch skew-angle detection for scanned images"
+default-run = "scan-angle"
 
 [features]
-default = ["gui"]
-# 关闭该特性可构建完全不链接窗口组件的命令行版本：
-#   cargo build --locked --release --no-default-features
-gui = ["dep:eframe", "dep:rfd", "dep:open", "windows/Win32_System_Console"]
+default = ["cli", "gui"]
+# 仅命令行（不链接窗口组件）：
+#   cargo build --locked --release --no-default-features --features cli
+cli = ["dep:clap"]
+# 仅窗口（仍解析命令行参数以初始化控件）：
+#   cargo build --locked --release --no-default-features --features gui
+#   只启用 gui 时 cargo run 需显式指定 bin：
+#   cargo run --locked --release --no-default-features --features gui --bin scan-angle-gui
+gui = [
+    "dep:clap",
+    "dep:eframe",
+    "dep:rfd",
+    "dep:open",
+    "windows/Win32_System_Console",
+]
+
+[[bin]]
+name = "scan-angle"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "scan-angle-gui"
+path = "src/bin/scan-angle-gui.rs"
+required-features = ["gui"]
 
 [dependencies]
 anyhow = "1"
@@ -19,7 +41,7 @@ serde_json = "1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp"] }
 tiff = "0.11"
 lsdetect = "0.4.0"
-clap = { version = "4", features = ["derive", "string"] }
+clap = { version = "4", features = ["derive", "string"], optional = true }
 csv = "1"
 walkdir = "2"
 dunce = "1"

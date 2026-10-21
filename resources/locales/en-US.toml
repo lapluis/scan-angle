@@ -13,7 +13,6 @@ name = "English"
 "cli.help.allow_large_images" = "Allow trusted local scans above the default pixel safety limit"
 "cli.help.json" = "Print detection results as JSON with the same structure as details.json"
 "cli.error.max_angle_range" = "max_angle must be between 1 and 30"
-"cli.error.no_gui_requires_folder" = "The build without GUI requires an input folder, for example:\n    scan-angle <input folder> [--output <output folder>]"
 
 "settings.label.max_angle" = "Max skew ± (°)"
 "settings.label.min_line_percent" = "Min line ≥ corresponding edge (%)"
@@ -157,7 +156,7 @@ name = "English"
 
 "cli.help.version" = "Print version"
 
-"cli.help.folder" = "Input image folder; omit to open the GUI"
+"cli.help.folder" = "Input image folder"
 
 "cli.help.output" = "Output directory; omit for console results only"
 

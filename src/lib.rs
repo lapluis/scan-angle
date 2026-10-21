@@ -1,4 +1,5 @@
 pub mod batch;
+#[cfg(any(feature = "cli", feature = "gui"))]
 pub mod cli;
 pub mod detection;
 #[cfg(feature = "gui")]

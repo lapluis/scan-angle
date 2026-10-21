@@ -1,3 +1,5 @@
+#![cfg(feature = "cli")]
+
 use std::{
     path::Path,
     process::{Command, Output},
@@ -39,7 +41,10 @@ fn help_and_parser_errors_follow_selected_language() {
     assert!(chinese.status.success());
     assert!(out(&chinese).contains("用法："));
     for (args, token) in [
-        (vec!["--lang=en-US", "--max-angle", "NaN"], "--max-angle"),
+        (
+            vec!["--lang=en-US", "input", "--max-angle", "NaN"],
+            "--max-angle",
+        ),
         (
             vec!["--analysis-size", "oops", "--lang=en-US"],
             "--analysis-size",

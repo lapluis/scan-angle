@@ -277,6 +277,7 @@ fn resize_pixels_match_python() {
     }
 }
 
+#[cfg(feature = "cli")]
 #[test]
 fn executable_cli_contract() {
     use std::process::Command;
@@ -285,7 +286,7 @@ fn executable_cli_contract() {
     assert!(help.status.success());
     assert!(String::from_utf8_lossy(&help.stdout).contains("--merge-gap-pixels"));
     let invalid = Command::new(binary)
-        .args(["--max-angle", "NaN"])
+        .args(["input", "--max-angle", "NaN"])
         .output()
         .unwrap();
     assert_eq!(invalid.status.code(), Some(2));
@@ -319,6 +320,7 @@ fn executable_cli_contract() {
     );
 }
 
+#[cfg(feature = "cli")]
 #[test]
 fn executable_console_only_without_output() {
     use std::process::Command;
@@ -358,6 +360,7 @@ fn executable_console_only_without_output() {
     assert!(!dir.path().join("input_角度结果").exists());
 }
 
+#[cfg(feature = "cli")]
 #[test]
 fn executable_json_output() {
     use std::process::Command;
